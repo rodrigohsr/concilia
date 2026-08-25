@@ -26,9 +26,14 @@ DefaultGroupName={#Nome}
 DisableProgramGroupPage=yes
 DisableDirPage=auto
 
-; Instala so para o usuario atual quando nao houver direitos de administrador.
-; Evita a tela de UAC nas maquinas do escritorio onde o usuario nao e admin.
-PrivilegesRequiredOverridesAllowed=dialog
+; Por padrao instala so para o usuario atual, sem passar pela tela de UAC nas
+; maquinas onde o usuario nao e administrador.
+;
+; 'commandline' habilita /ALLUSERS e /CURRENTUSER na linha de comando, que e o
+; que permite a instalacao para todos os usuarios da maquina em um script de
+; distribuicao (executado com privilegio de administrador). Sem essa opcao o
+; /ALLUSERS e simplesmente recusado.
+PrivilegesRequiredOverridesAllowed=commandline dialog
 PrivilegesRequired=lowest
 
 OutputDir=dist

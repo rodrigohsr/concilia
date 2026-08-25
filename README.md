@@ -38,23 +38,47 @@ python -m unittest                     # roda os testes
 
 Também é possível arrastar o arquivo OFX para dentro da janela.
 
-## Instalação nas máquinas do escritório
+## Instalação
 
 O instalador está anexado à release mais recente: `Concilia-1.0.0-setup.exe`.
 
-Instala para o usuário atual, **sem pedir senha de administrador**. Cria atalho
-no menu iniciar, opcionalmente na área de trabalho, e associa os arquivos `.ofx`
+Cria atalho no menu iniciar e na área de trabalho, e associa os arquivos `.ofx`
 e `.qfx` ao programa — dá para dar duplo clique no extrato que ele abre direto.
 
 A associação usa um ProgId próprio: se a máquina já tem outro programa que abre
-OFX, os dois continuam aparecendo em "Abrir com", nenhum atropela o outro. A
-desinstalação remove tudo, inclusive as preferências em `%APPDATA%\Concilia`.
+OFX, os dois continuam aparecendo em "Abrir com", nenhum atropela o outro.
 
-Instalação silenciosa, para distribuir por script:
+### No servidor (SRV-ESQUEMA)
+
+O escritório trabalha por área de trabalho remota em um RD Session Host, então
+**uma instalação atende todos os usuários** — não há nada para distribuir máquina
+a máquina. Como administrador:
+
+```powershell
+.\instalar_no_servidor.ps1
+```
+
+O script coloca o servidor em modo de instalação (`change user /install`), que é
+o procedimento documentado para que o programa valha inclusive para usuários que
+ainda não logaram, instala com `/ALLUSERS` e confere o resultado. Ele se recusa
+a rodar se alguém estiver com o Concilia aberto, para não instalar por cima de
+arquivos em uso.
+
+As preferências de cada um (última pasta, tamanho da janela) ficam separadas em
+`%APPDATA%\Concilia`, uma por usuário.
+
+### Em uma máquina avulsa
+
+Basta executar o instalador. Sem `/ALLUSERS` ele instala só para o usuário
+atual, **sem pedir senha de administrador** — útil onde o usuário não é admin.
+Silenciosamente:
 
 ```
 Concilia-1.0.0-setup.exe /VERYSILENT /NORESTART /TASKS=associar,desktopicon
 ```
+
+Acrescente `/ALLUSERS` (com privilégio de administrador) para instalar para
+todos os usuários da máquina.
 
 ## Desenvolvimento
 
@@ -97,6 +121,7 @@ segunda cópia.
 | `test_ofx_parser.py` | testes do parser (`python -m unittest`) |
 | `installer.iss` | script do instalador (Inno Setup) |
 | `build.ps1` / `build_installer.ps1` | geração do executável e do instalador |
+| `instalar_no_servidor.ps1` | instalação para todos os usuários do RD Session Host |
 | `concilia.ico` / `concilia.png` | ícone do programa |
 | `legacy/` | versão anterior, mantida para consulta |
 
