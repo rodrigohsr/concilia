@@ -44,8 +44,20 @@ UninstallDisplayName={#Nome} {#Versao}
 
 Compression=lzma2/max
 SolidCompression=yes
-WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
+
+; --- aparencia do assistente ---
+; Sem estas imagens o Inno usa as proprias, genericas, e o instalador fica com
+; cara de instalador de qualquer coisa. Sao geradas por gerar_imagens.py, em
+; varios tamanhos: o Inno escolhe o mais proximo da escala de tela do usuario.
+WizardStyle=modern
+WizardSizePercent=120
+WizardImageFile=instalador\painel-164x314.bmp,instalador\painel-192x386.bmp,instalador\painel-246x459.bmp,instalador\painel-328x628.bmp
+WizardSmallImageFile=instalador\marca-55x58.bmp,instalador\marca-64x68.bmp,instalador\marca-92x97.bmp,instalador\marca-110x116.bmp
+WizardImageStretch=yes
+; a pagina de boas-vindas vem desligada no estilo moderno; e ela que mostra o
+; painel da marca, entao volta a ser exibida
+DisableWelcomePage=no
 
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"

@@ -15,3 +15,6 @@ venv/
 # Sistema
 Thumbs.db
 desktop.ini
+
+# previa gerada para conferencia visual das imagens do instalador
+instalador/previa.png

@@ -137,7 +137,8 @@ class ConciliaApp:
     # Construcao da interface
     # ------------------------------------------------------------------
     def _montar_janela(self) -> None:
-        self.root.title(f"{APP_NOME} - {EMPRESA}")
+        # a versao no titulo torna imediato saber qual build esta rodando
+        self.root.title(f"{APP_NOME} {VERSAO} - {EMPRESA}")
         self.root.geometry(self.config.get("geometria", "1200x680"))
         self.root.minsize(900, 480)
         for icone in ("concilia.ico", "cifrao.ico"):
@@ -451,7 +452,7 @@ class ConciliaApp:
         titulos = {
             "data": ("Data", 96, "center", False),
             "tipo": ("Tipo", 96, "w", False),
-            "historico": ("Histórico", 520, "w", True),
+            "historico": ("Histórico", 520, "center", True),
             "valor": ("Valor", 140, "e", False),
             "saldo": ("Saldo", 140, "e", False),
         }
