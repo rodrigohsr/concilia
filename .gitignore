@@ -1,0 +1,17 @@
+# Artefatos de build
+build/
+dist/
+*.spec
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Instalador
+*-setup.exe
+
+# Sistema
+Thumbs.db
+desktop.ini

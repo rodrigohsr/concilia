@@ -1,0 +1,13 @@
+# O parser e a interface usam apenas a biblioteca padrao do Python (3.10+).
+# Nada aqui e necessario para abrir e conferir um extrato na tela.
+#
+# Os pacotes abaixo sao opcionais e carregados sob demanda, apenas quando a
+# funcao correspondente e usada - por isso nao pesam na abertura do programa.
+
+reportlab>=4.0    # exportar em PDF
+openpyxl>=3.1     # exportar em .xlsx (a exportacao em .csv nao exige nada)
+windnd>=1.0       # arrastar e soltar o arquivo OFX na janela (somente Windows)
+pillow>=10.0      # so e usado se o logo nao estiver em um PNG legivel pelo Tk
+
+# Para gerar o executavel:
+# pyinstaller>=6.0
