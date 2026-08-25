@@ -20,7 +20,7 @@ from tkinter import filedialog, messagebox, ttk
 from ofx_parser import ExtratoOFX, OFXParserBR
 
 APP_NOME = "Concilia"
-VERSAO = "1.0.0"
+VERSAO = "1.1.0"
 DESCRICAO = "Conferencia de extratos bancarios em OFX"
 EMPRESA = "Esquema Assessoria Contabil"
 AVISO_LEGAL = "Extrato gerado para conferencia. Nao substitui o documento oficial do banco."
