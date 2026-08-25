@@ -130,6 +130,22 @@ do nome do programa — é o lugar de colocar o logo do escritório.
 
 ## Notas de manutenção
 
+**Cor na tabela marca exceção, não a regra.** A versão anterior pintava toda
+linha de verde ou vermelho; num extrato quase todo de débitos, isso faz a cor
+perder o significado e cansa a leitura. O texto da tabela é neutro, e a cor
+aparece só nos cartões de resumo, onde são quatro números e a distinção ajuda.
+
+**`ttk.Treeview` só aceita cor por linha, nunca por célula.** Por isso "pintar
+apenas a coluna Valor" não é possível — a alternativa seria trocar de widget, e
+não vale o custo. O sufixo `C`/`D` e o alinhamento à direita dão a leitura.
+
+**O tema fica todo em `_aplicar_tema()`.** O `clam` é a base porque é o tema que
+mais aceita customização; os temas nativos do Windows ignoram boa parte das
+cores. A lista suspensa do Combobox não é um widget ttk — só se alcança pelas
+`option_add` do Tcl, que estão no mesmo método.
+
+
+
 **O parser lê o arquivo em uma passagem só.** Um único `finditer` percorre o
 texto e monta uma árvore de tags; os campos são lidos dessa árvore. A versão
 anterior fazia uma expressão regular por campo de cada lançamento.

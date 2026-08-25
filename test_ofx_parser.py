@@ -204,8 +204,8 @@ class TestSGML(unittest.TestCase):
         self.assertEqual(self.extrato.transacoes[0].memo, "TED RECEBIDA JOAO & MARIA LTDA")
 
     def test_rotulos_em_portugues(self):
-        self.assertEqual(self.extrato.transacoes[0].tipo, "Credito")
-        self.assertEqual(self.extrato.transacoes[1].tipo, "Debito")
+        self.assertEqual(self.extrato.transacoes[0].tipo, "Crédito")
+        self.assertEqual(self.extrato.transacoes[1].tipo, "Débito")
 
     def test_saldos(self):
         self.assertEqual(self.extrato.saldo_final, 1150.00)
@@ -235,7 +235,7 @@ class TestXML(unittest.TestCase):
         self.assertEqual(len(self.extrato.transacoes), 1)
         self.assertEqual(self.extrato.transacoes[0].valor, -10.00)
         self.assertEqual(self.extrato.conta.acct_id, "9999")
-        self.assertEqual(self.extrato.conta.banco_nome, "Itau Unibanco")
+        self.assertEqual(self.extrato.conta.banco_nome, "Itaú Unibanco")
 
     def test_descricao_junta_name_e_memo(self):
         # NAME esta contido no MEMO: nao deve repetir
@@ -299,7 +299,7 @@ class TestRobustez(unittest.TestCase):
         </BANKTRANLIST></STMTRS></OFX>"""
         extrato = OFXParserBR().parse_string(ofx)
         self.assertEqual(len(extrato.transacoes), 1)
-        self.assertEqual(extrato.transacoes[0].tipo, "Debito")
+        self.assertEqual(extrato.transacoes[0].tipo, "Débito")
 
     def test_ordena_por_data(self):
         ofx = """<OFX><STMTRS><BANKTRANLIST>

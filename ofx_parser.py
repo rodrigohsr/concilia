@@ -44,27 +44,27 @@ __all__ = [
 # ---------------------------------------------------------------------------
 BANCOS_BR: dict[str, str] = {
     "1": "Banco do Brasil",
-    "3": "Banco da Amazonia",
+    "3": "Banco da Amazônia",
     "4": "Banco do Nordeste",
     "21": "Banestes",
     "25": "Banco Alfa",
     "33": "Santander",
     "36": "Banco Bradesco BBI",
-    "37": "Banpara",
+    "37": "Banpará",
     "41": "Banrisul",
     "47": "Banese",
     "62": "Hipercard",
     "70": "BRB",
     "74": "Safra",
     "77": "Banco Inter",
-    "84": "Uniprime Norte do Parana",
+    "84": "Uniprime Norte do Paraná",
     "85": "Ailos / Cecred",
     "89": "Credisan",
     "91": "Unicred Central RS",
     "94": "Banco Finaxis",
     "97": "Credisis",
     "99": "Uniprime Central",
-    "104": "Caixa Economica Federal",
+    "104": "Caixa Econômica Federal",
     "107": "Banco Bocom BBM",
     "121": "Agibank",
     "133": "Cresol",
@@ -79,7 +79,7 @@ BANCOS_BR: dict[str, str] = {
     "233": "Banco Cifra",
     "237": "Bradesco",
     "246": "Banco ABC Brasil",
-    "254": "Parana Banco",
+    "254": "Paraná Banco",
     "260": "Nubank",
     "265": "Banco Fator",
     "274": "Money Plus",
@@ -88,11 +88,11 @@ BANCOS_BR: dict[str, str] = {
     "318": "Banco BMG",
     "320": "China Construction Bank",
     "323": "Mercado Pago",
-    "329": "QI Sociedade de Credito",
-    "332": "Acesso Solucoes de Pagamento",
+    "329": "QI Sociedade de Crédito",
+    "332": "Acesso Soluções de Pagamento",
     "335": "Banco Digio",
     "336": "C6 Bank",
-    "341": "Itau Unibanco",
+    "341": "Itaú Unibanco",
     "348": "Banco XP",
     "364": "Gerencianet / Efi",
     "376": "J.P. Morgan",
@@ -106,7 +106,7 @@ BANCOS_BR: dict[str, str] = {
     "422": "Banco Safra",
     "450": "Fitbank",
     "461": "Asaas",
-    "479": "Banco ItauBank",
+    "479": "Banco ItaúBank",
     "487": "Deutsche Bank",
     "505": "Banco Credit Suisse",
     "600": "Banco Luso Brasileiro",
@@ -119,17 +119,17 @@ BANCOS_BR: dict[str, str] = {
     "626": "Banco C6 Consignado",
     "630": "Banco Smartbank",
     "633": "Banco Rendimento",
-    "634": "Banco Triangulo",
+    "634": "Banco Triângulo",
     "637": "Banco Sofisa",
     "643": "Banco Pine",
-    "652": "Itau Unibanco Holding",
+    "652": "Itaú Unibanco Holding",
     "653": "Banco Voiter",
     "654": "Banco Digimais",
     "655": "Neon / Votorantim",
     "707": "Banco Daycoval",
     "712": "Banco Ourinvest",
     "739": "Banco Cetelem",
-    "741": "Banco Ribeirao Preto",
+    "741": "Banco Ribeirão Preto",
     "745": "Citibank",
     "746": "Banco Modal",
     "747": "Rabobank",
@@ -170,16 +170,16 @@ class ContaOFX:
         if self.banco_nome or self.bank_id:
             return self.banco_nome or self.bank_id  # type: ignore[return-value]
         # cartoes costumam vir sem BANKID; ao menos identifica o produto
-        return "Cartao de credito" if self.tipo_descricao == "Cartao de credito" else "Nao informado"
+        return self.tipo_descricao or "Não informado"
 
     @property
     def tipo_descricao(self) -> str | None:
         return {
             "CHECKING": "Conta corrente",
-            "SAVINGS": "Poupanca",
+            "SAVINGS": "Poupança",
             "MONEYMRKT": "Conta investimento",
-            "CREDITLINE": "Credito rotativo",
-            "CREDITCARD": "Cartao de credito",
+            "CREDITLINE": "Crédito rotativo",
+            "CREDITCARD": "Cartão de crédito",
         }.get((self.acct_type or "").upper())
 
 
@@ -188,7 +188,7 @@ class TransacaoOFX:
     dt_posted: str | None = None
     dt_posted_iso: str | None = None
     valor: float | None = None
-    tipo: str | None = None           # rotulo em portugues: "Credito", "Debito"...
+    tipo: str | None = None           # rotulo em portugues: "Crédito", "Débito"...
     trn_type: str | None = None       # codigo original: CREDIT, DEBIT, ...
     fit_id: str | None = None
     memo: str | None = None
@@ -426,21 +426,21 @@ class OFXParserBR:
     """
 
     _TIPO_LABEL = {
-        "CREDIT": "Credito",
-        "DEBIT": "Debito",
+        "CREDIT": "Crédito",
+        "DEBIT": "Débito",
         "INT": "Juros",
         "DIV": "Dividendo",
         "FEE": "Tarifa",
-        "SRVCHG": "Tarifa de servico",
-        "DEP": "Deposito",
+        "SRVCHG": "Tarifa de serviço",
+        "DEP": "Depósito",
         "ATM": "Saque ATM",
         "POS": "Ponto de venda",
-        "XFER": "Transferencia",
+        "XFER": "Transferência",
         "CHECK": "Cheque",
         "PAYMENT": "Pagamento",
         "CASH": "Dinheiro",
-        "DIRECTDEP": "Deposito direto",
-        "DIRECTDEBIT": "Debito direto",
+        "DIRECTDEP": "Depósito direto",
+        "DIRECTDEBIT": "Débito direto",
         "REPEATPMT": "Pagamento recorrente",
         "HOLD": "Bloqueio",
         "OTHER": "Outro",

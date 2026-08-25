@@ -25,14 +25,26 @@ DESCRICAO = "Conferencia de extratos bancarios em OFX"
 EMPRESA = "Esquema Assessoria Contabil"
 AVISO_LEGAL = "Extrato gerado para conferencia. Nao substitui o documento oficial do banco."
 
-# Paleta
-COR_FUNDO_TOPO = "#ffffff"
-COR_DESTAQUE = "#00a8e8"
-COR_BARRA = "#f4f6f9"
-COR_TEXTO = "#333333"
-COR_DEBITO = "#c62828"
-COR_CREDITO = "#1b5e20"
-COR_ZEBRA = "#f7f9fc"
+# Paleta.
+#
+# Regra que orienta o uso de cor na tabela: cor marca excecao, nao a regra. Um
+# extrato normal e quase todo debito, entao pintar cada linha de vermelho e
+# verde faz a cor perder o sentido e cansa a leitura. O texto fica neutro e a
+# cor aparece so onde ajuda a achar algo.
+COR_FUNDO = "#f1f5f9"        # fundo da janela
+COR_SUPERFICIE = "#ffffff"   # cartoes e tabela
+COR_BORDA = "#e2e8f0"
+COR_BORDA_FORTE = "#cbd5e1"
+COR_TEXTO = "#0f172a"
+COR_TEXTO_FRACO = "#64748b"
+COR_DESTAQUE = "#0284c7"
+COR_DESTAQUE_FUNDO = "#e0f2fe"
+COR_DEBITO = "#b91c1c"
+COR_CREDITO = "#15803d"
+COR_ZEBRA = "#f8fafc"
+
+FONTE = "Segoe UI"
+FONTE_NUM = "Consolas"      # numeros alinham melhor em fonte de largura fixa
 
 # Quantidade de linhas inseridas por ciclo ao preencher a tabela. Manter a
 # insercao fatiada deixa a janela responsiva em extratos muito grandes.
@@ -135,62 +147,254 @@ class ConciliaApp:
             except tk.TclError:
                 continue
 
+        self.root.configure(bg=COR_FUNDO)
+        self._aplicar_tema()
+        self.root.protocol("WM_DELETE_WINDOW", self._ao_fechar)
+
+    def _aplicar_tema(self) -> None:
+        """Estiliza o ttk. O 'clam' e a base porque e o tema que mais aceita
+        customizacao - os temas nativos do Windows ignoram boa parte das cores."""
         self.style = ttk.Style()
         try:
             self.style.theme_use("clam")
         except tk.TclError:
             pass
-        self.style.configure("Treeview", rowheight=22)
-        self.style.configure("Treeview.Heading", font=("Segoe UI", 9, "bold"))
-        self.root.protocol("WM_DELETE_WINDOW", self._ao_fechar)
+
+        e = self.style.configure
+        m = self.style.map
+
+        # --- tabela ---------------------------------------------------------
+        e(
+            "Concilia.Treeview",
+            background=COR_SUPERFICIE,
+            fieldbackground=COR_SUPERFICIE,
+            foreground=COR_TEXTO,
+            rowheight=30,
+            borderwidth=0,
+            relief="flat",
+            font=(FONTE, 9),
+        )
+        m(
+            "Concilia.Treeview",
+            background=[("selected", COR_DESTAQUE_FUNDO)],
+            foreground=[("selected", COR_TEXTO)],
+        )
+        e(
+            "Concilia.Treeview.Heading",
+            background=COR_FUNDO,
+            foreground=COR_TEXTO_FRACO,
+            relief="flat",
+            borderwidth=0,
+            padding=(12, 10),
+            font=(FONTE, 8, "bold"),
+        )
+        m(
+            "Concilia.Treeview.Heading",
+            background=[("active", COR_BORDA)],
+            foreground=[("active", COR_TEXTO)],
+        )
+        # remove a moldura afundada que o clam desenha em volta da tabela
+        self.style.layout(
+            "Concilia.Treeview",
+            [("Concilia.Treeview.treearea", {"sticky": "nswe"})],
+        )
+
+        # --- botoes ---------------------------------------------------------
+        for nome, fundo, texto, fundo_hover in (
+            ("Acao.TButton", COR_DESTAQUE, "#ffffff", "#0369a1"),
+            ("Secundario.TButton", COR_SUPERFICIE, COR_TEXTO, COR_DESTAQUE_FUNDO),
+        ):
+            e(
+                nome,
+                background=fundo,
+                foreground=texto,
+                bordercolor=COR_BORDA_FORTE,
+                lightcolor=fundo,
+                darkcolor=fundo,
+                focuscolor=fundo,
+                borderwidth=0 if nome == "Acao.TButton" else 1,
+                relief="flat",
+                padding=(14, 7),
+                font=(FONTE, 9),
+            )
+            m(
+                nome,
+                background=[("disabled", COR_FUNDO), ("pressed", fundo_hover), ("active", fundo_hover)],
+                foreground=[("disabled", "#94a3b8")],
+                bordercolor=[("disabled", COR_BORDA)],
+            )
+
+        # --- campos ---------------------------------------------------------
+        e(
+            "Concilia.TEntry",
+            fieldbackground=COR_SUPERFICIE,
+            foreground=COR_TEXTO,
+            bordercolor=COR_BORDA_FORTE,
+            lightcolor=COR_BORDA_FORTE,
+            darkcolor=COR_BORDA_FORTE,
+            insertcolor=COR_TEXTO,
+            borderwidth=1,
+            relief="flat",
+            padding=(8, 6),
+        )
+        m("Concilia.TEntry", bordercolor=[("focus", COR_DESTAQUE)], lightcolor=[("focus", COR_DESTAQUE)])
+
+        e(
+            "Concilia.TCombobox",
+            fieldbackground=COR_SUPERFICIE,
+            background=COR_SUPERFICIE,
+            foreground=COR_TEXTO,
+            bordercolor=COR_BORDA_FORTE,
+            lightcolor=COR_BORDA_FORTE,
+            darkcolor=COR_BORDA_FORTE,
+            arrowcolor=COR_TEXTO_FRACO,
+            borderwidth=1,
+            padding=(8, 5),
+        )
+        m(
+            "Concilia.TCombobox",
+            fieldbackground=[("readonly", COR_SUPERFICIE)],
+            bordercolor=[("focus", COR_DESTAQUE), ("active", COR_DESTAQUE)],
+            arrowcolor=[("active", COR_DESTAQUE)],
+        )
+        # a lista suspensa nao e um widget ttk; so o Tcl alcanca as cores dela
+        self.root.option_add("*TCombobox*Listbox.background", COR_SUPERFICIE)
+        self.root.option_add("*TCombobox*Listbox.foreground", COR_TEXTO)
+        self.root.option_add("*TCombobox*Listbox.selectBackground", COR_DESTAQUE_FUNDO)
+        self.root.option_add("*TCombobox*Listbox.selectForeground", COR_TEXTO)
+        self.root.option_add("*TCombobox*Listbox.font", (FONTE, 9))
+
+        # --- barra de rolagem -----------------------------------------------
+        e(
+            "Concilia.Vertical.TScrollbar",
+            background=COR_BORDA_FORTE,
+            troughcolor=COR_SUPERFICIE,
+            bordercolor=COR_SUPERFICIE,
+            lightcolor=COR_SUPERFICIE,
+            darkcolor=COR_SUPERFICIE,
+            arrowcolor=COR_TEXTO_FRACO,
+            borderwidth=0,
+            width=12,
+        )
+        m("Concilia.Vertical.TScrollbar", background=[("active", COR_TEXTO_FRACO)])
 
     def _montar_cabecalho(self) -> None:
-        self.header = tk.Frame(self.root, bg=COR_FUNDO_TOPO)
+        self.header = tk.Frame(self.root, bg=COR_SUPERFICIE)
         self.header.pack(fill="x", side="top")
 
+        identidade = tk.Frame(self.header, bg=COR_SUPERFICIE)
+        identidade.pack(fill="x", padx=20, pady=(16, 4))
+
+        # marca a esquerda; o logo da empresa, se houver, entra no lugar
         self.titulo = tk.Label(
-            self.header,
+            identidade,
             text=APP_NOME,
-            font=("Segoe UI", 14, "bold"),
-            fg=COR_TEXTO,
-            bg=COR_FUNDO_TOPO,
+            font=(FONTE, 15, "bold"),
+            fg=COR_DESTAQUE,
+            bg=COR_SUPERFICIE,
         )
-        self.titulo.pack(anchor="center", pady=(12, 4))
+        self.titulo.pack(side="left", anchor="w")
 
-        self.info = tk.Label(
-            self.header,
-            text="Abra um arquivo OFX (ou arraste-o para esta janela).",
-            font=("Segoe UI", 9),
+        # Identidade da conta a direita, em duas alturas: o banco em destaque e
+        # os detalhes (agencia, conta, periodo) abaixo, em tom fraco. Antes era
+        # tudo uma linha corrida, com o mesmo peso para banco e agencia.
+        bloco_conta = tk.Frame(identidade, bg=COR_SUPERFICIE)
+        bloco_conta.pack(side="right", anchor="e")
+
+        self.lbl_banco = tk.Label(
+            bloco_conta,
+            text="Nenhum extrato aberto",
+            font=(FONTE, 11, "bold"),
             fg=COR_TEXTO,
-            bg=COR_FUNDO_TOPO,
-            justify="center",
+            bg=COR_SUPERFICIE,
+            anchor="e",
         )
-        self.info.pack(anchor="center", pady=(0, 12))
+        self.lbl_banco.pack(anchor="e")
 
-        tk.Frame(self.root, bg=COR_DESTAQUE, height=3).pack(fill="x")
+        self.lbl_conta = tk.Label(
+            bloco_conta,
+            text="Abra um arquivo OFX ou arraste-o para esta janela",
+            font=(FONTE, 9),
+            fg=COR_TEXTO_FRACO,
+            bg=COR_SUPERFICIE,
+            anchor="e",
+        )
+        self.lbl_conta.pack(anchor="e")
+
+        # --- cartoes de resumo ----------------------------------------------
+        self.cartoes = tk.Frame(self.header, bg=COR_SUPERFICIE)
+        self.cartoes.pack(fill="x", padx=20, pady=(12, 16))
+
+        self.valores_cartao: dict[str, tk.Label] = {}
+        definicao = (
+            ("saldo_anterior", "Saldo anterior", COR_TEXTO),
+            ("creditos", "Créditos", COR_CREDITO),
+            ("debitos", "Débitos", COR_DEBITO),
+            ("saldo_final", "Saldo final", COR_TEXTO),
+        )
+        for coluna, (chave, rotulo, cor) in enumerate(definicao):
+            # destaque so no cartao do saldo final: e o numero que se confere
+            final = chave == "saldo_final"
+            fundo = COR_DESTAQUE_FUNDO if final else COR_FUNDO
+
+            cartao = tk.Frame(
+                self.cartoes,
+                bg=fundo,
+                highlightthickness=1,
+                highlightbackground=COR_DESTAQUE if final else COR_BORDA,
+            )
+            cartao.grid(row=0, column=coluna, sticky="ew", padx=(0, 10) if coluna < 3 else 0)
+            self.cartoes.columnconfigure(coluna, weight=1, uniform="cartao")
+
+            tk.Label(
+                cartao,
+                text=rotulo.upper(),
+                font=(FONTE, 8),
+                fg=COR_TEXTO_FRACO,
+                bg=fundo,
+                anchor="w",
+            ).pack(fill="x", padx=14, pady=(10, 0))
+
+            valor = tk.Label(
+                cartao,
+                text="-",
+                font=(FONTE, 15 if final else 14, "bold"),
+                fg=cor,
+                bg=fundo,
+                anchor="w",
+            )
+            valor.pack(fill="x", padx=14, pady=(0, 10))
+            self.valores_cartao[chave] = valor
+
+        tk.Frame(self.root, bg=COR_BORDA, height=1).pack(fill="x")
 
     def _montar_barra(self) -> None:
-        barra = tk.Frame(self.root, bg=COR_BARRA, bd=1, relief="groove")
-        barra.pack(fill="x")
+        barra = tk.Frame(self.root, bg=COR_FUNDO)
+        barra.pack(fill="x", padx=20, pady=(14, 10))
 
-        self.btn_abrir = ttk.Button(barra, text="Abrir OFX", command=self.selecionar_arquivo)
-        self.btn_abrir.pack(side="left", padx=(10, 4), pady=6)
+        self.btn_abrir = ttk.Button(
+            barra, text="Abrir extrato", style="Acao.TButton", command=self.selecionar_arquivo
+        )
+        self.btn_abrir.pack(side="left")
 
-        self.btn_recarregar = ttk.Button(barra, text="Recarregar", command=self.recarregar, state="disabled")
-        self.btn_recarregar.pack(side="left", padx=4, pady=6)
+        self.btn_recarregar = ttk.Button(
+            barra, text="Recarregar", style="Secundario.TButton", command=self.recarregar, state="disabled"
+        )
+        self.btn_recarregar.pack(side="left", padx=(8, 0))
 
-        ttk.Separator(barra, orient="vertical").pack(side="left", fill="y", padx=8, pady=6)
+        self.btn_pdf = ttk.Button(
+            barra, text="PDF", style="Secundario.TButton", command=self.exportar_pdf, state="disabled"
+        )
+        self.btn_pdf.pack(side="left", padx=(8, 0))
 
-        self.btn_pdf = ttk.Button(barra, text="Exportar PDF", command=self.exportar_pdf, state="disabled")
-        self.btn_pdf.pack(side="left", padx=4, pady=6)
-
-        self.btn_planilha = ttk.Button(barra, text="Exportar planilha", command=self.exportar_planilha, state="disabled")
-        self.btn_planilha.pack(side="left", padx=4, pady=6)
+        self.btn_planilha = ttk.Button(
+            barra, text="Planilha", style="Secundario.TButton", command=self.exportar_planilha, state="disabled"
+        )
+        self.btn_planilha.pack(side="left", padx=(8, 0))
 
         # Seletor de conta: so aparece em arquivos com mais de um extrato
-        self.frame_conta = tk.Frame(barra, bg=COR_BARRA)
-        tk.Label(self.frame_conta, text="Conta:", bg=COR_BARRA, fg=COR_TEXTO).pack(side="left", padx=(8, 4))
-        self.cb_conta = ttk.Combobox(self.frame_conta, state="readonly", width=34)
+        self.frame_conta = tk.Frame(barra, bg=COR_FUNDO)
+        self.cb_conta = ttk.Combobox(self.frame_conta, state="readonly", width=32, style="Concilia.TCombobox")
         self.cb_conta.pack(side="left")
         self.cb_conta.bind("<<ComboboxSelected>>", self._trocar_conta)
 
@@ -199,63 +403,89 @@ class ConciliaApp:
         self.var_filtro = tk.StringVar(value="Todos")
 
         self.cb_filtro = ttk.Combobox(
-            barra, state="readonly", width=12, values=("Todos", "Creditos", "Debitos"), textvariable=self.var_filtro
+            barra,
+            state="readonly",
+            width=11,
+            values=("Todos", "Créditos", "Débitos"),
+            textvariable=self.var_filtro,
+            style="Concilia.TCombobox",
         )
-        self.cb_filtro.pack(side="right", padx=(4, 10), pady=6)
+        self.cb_filtro.pack(side="right")
         self.cb_filtro.bind("<<ComboboxSelected>>", lambda _e: self._aplicar_filtros())
-        tk.Label(barra, text="Mostrar:", bg=COR_BARRA, fg=COR_TEXTO).pack(side="right")
 
-        self.entry_busca = ttk.Entry(barra, textvariable=self.var_busca, width=30)
-        self.entry_busca.pack(side="right", padx=(4, 12), pady=6)
+        self.entry_busca = ttk.Entry(barra, textvariable=self.var_busca, width=32, style="Concilia.TEntry")
+        self.entry_busca.pack(side="right", padx=(0, 8))
         self.var_busca.trace_add("write", self._busca_alterada)
-        tk.Label(barra, text="Localizar:", bg=COR_BARRA, fg=COR_TEXTO).pack(side="right", padx=(8, 0))
+        self._marca_dagua_busca()
+
+    def _marca_dagua_busca(self) -> None:
+        """Texto de dica dentro do campo de busca.
+
+        E um rotulo posicionado sobre o campo, e nao um texto pre-preenchido:
+        assim a dica nunca chega a `var_busca` e nao corre o risco de ser
+        confundida com um termo de pesquisa.
+        """
+        self.marca_busca = tk.Label(
+            self.entry_busca, text="Localizar lançamento", font=(FONTE, 9), fg="#94a3b8", bg=COR_SUPERFICIE
+        )
+        self.marca_busca.bind("<Button-1>", lambda _e: self.entry_busca.focus_set())
+
+        def alternar(*_args) -> None:
+            if self.var_busca.get():
+                self.marca_busca.place_forget()
+            else:
+                self.marca_busca.place(x=10, rely=0.5, anchor="w")
+
+        self.var_busca.trace_add("write", alternar)
+        alternar()
 
     def _montar_tabela(self) -> None:
-        moldura = tk.Frame(self.root)
-        moldura.pack(fill="both", expand=True, padx=12, pady=(12, 6))
+        moldura = tk.Frame(self.root, bg=COR_SUPERFICIE, highlightthickness=1, highlightbackground=COR_BORDA)
+        moldura.pack(fill="both", expand=True, padx=20, pady=(0, 12))
 
         colunas = ("data", "tipo", "historico", "valor", "saldo")
-        self.tree = ttk.Treeview(moldura, columns=colunas, show="headings", selectmode="extended")
+        self.tree = ttk.Treeview(
+            moldura, columns=colunas, show="headings", selectmode="extended", style="Concilia.Treeview"
+        )
 
         titulos = {
-            "data": ("Data", 100, "center", False),
-            "tipo": ("Tipo", 110, "center", False),
-            "historico": ("Historico", 560, "w", True),
-            "valor": ("Valor", 150, "e", False),
-            "saldo": ("Saldo", 150, "e", False),
+            "data": ("Data", 96, "center", False),
+            "tipo": ("Tipo", 96, "w", False),
+            "historico": ("Histórico", 520, "w", True),
+            "valor": ("Valor", 140, "e", False),
+            "saldo": ("Saldo", 140, "e", False),
         }
         for coluna, (texto, largura, alinhamento, estica) in titulos.items():
             self.tree.heading(coluna, text=texto, command=lambda c=coluna: self._ordenar_por(c))
-            self.tree.column(coluna, width=largura, anchor=alinhamento, stretch=estica)
+            self.tree.column(coluna, width=largura, anchor=alinhamento, stretch=estica, minwidth=70)
 
-        self.tree.tag_configure("debito", foreground=COR_DEBITO)
-        self.tree.tag_configure("credito", foreground=COR_CREDITO)
+        # Cor so no debito, e so no tom do texto: e a excecao que se procura num
+        # extrato. Credito fica neutro - antes as duas cores brigavam em todas
+        # as linhas e nenhuma delas informava nada.
         self.tree.tag_configure("zebra", background=COR_ZEBRA)
 
-        vsb = ttk.Scrollbar(moldura, orient="vertical", command=self.tree.yview)
-        hsb = ttk.Scrollbar(moldura, orient="horizontal", command=self.tree.xview)
-        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        vsb = ttk.Scrollbar(moldura, orient="vertical", command=self.tree.yview, style="Concilia.Vertical.TScrollbar")
+        self.tree.configure(yscrollcommand=vsb.set)
 
-        self.tree.grid(row=0, column=0, sticky="nsew")
-        vsb.grid(row=0, column=1, sticky="ns")
-        hsb.grid(row=1, column=0, sticky="ew")
+        self.tree.grid(row=0, column=0, sticky="nsew", padx=(1, 0), pady=1)
+        vsb.grid(row=0, column=1, sticky="ns", pady=1, padx=(0, 1))
         moldura.rowconfigure(0, weight=1)
         moldura.columnconfigure(0, weight=1)
 
         self.tree.bind("<Double-1>", self._mostrar_detalhes)
 
     def _montar_rodape(self) -> None:
-        rodape = tk.Frame(self.root, bg=COR_BARRA, bd=1, relief="groove")
+        rodape = tk.Frame(self.root, bg=COR_FUNDO)
         rodape.pack(fill="x", side="bottom")
         self.status = tk.Label(
             rodape,
-            text="Pronto.",
-            bg=COR_BARRA,
-            fg=COR_TEXTO,
+            text="Pronto",
+            bg=COR_FUNDO,
+            fg=COR_TEXTO_FRACO,
             anchor="w",
-            font=("Segoe UI", 9),
-            padx=10,
-            pady=5,
+            font=(FONTE, 9),
+            padx=20,
+            pady=8,
         )
         self.status.pack(fill="x")
 
@@ -388,7 +618,7 @@ class ConciliaApp:
     @staticmethod
     def _montar_linha(transacao) -> Linha:
         valor = transacao.valor or 0.0
-        historico = transacao.descricao or "(sem historico)"
+        historico = transacao.descricao or "(sem histórico)"
         tipo = transacao.tipo or ""
         detalhes = "\n".join(
             f"{rotulo}: {texto}"
@@ -396,11 +626,11 @@ class ConciliaApp:
                 ("Data", formatar_data(transacao.dt_posted_iso)),
                 ("Tipo", tipo),
                 ("Valor", formatar_valor_cd(valor)),
-                ("Saldo apos o lancamento", formatar_valor_cd(transacao.saldo)),
+                ("Saldo após o lançamento", formatar_valor_cd(transacao.saldo)),
                 ("Documento", transacao.check_num),
-                ("Referencia", transacao.ref_num),
+                ("Referência", transacao.ref_num),
                 ("Identificador (FITID)", transacao.fit_id),
-                ("Historico", historico),
+                ("Histórico", historico),
             )
             if texto
         )
@@ -417,30 +647,58 @@ class ConciliaApp:
             busca=f"{historico}\n{tipo}".lower(),
         )
 
+    def _detalhes_conta(self) -> str:
+        """Linha secundaria do cabecalho: agencia, conta, periodo e contagem."""
+        extrato = self.extrato
+        if extrato is None:
+            return ""
+        conta = extrato.conta
+        partes = []
+        if conta.branch_id:
+            partes.append(f"Ag. {conta.branch_id}")
+        rotulo = "Cartão" if (conta.acct_type or "").upper() == "CREDITCARD" else "Conta"
+        partes.append(f"{rotulo} {conta.acct_id or 'não informada'}")
+        if extrato.dt_inicio_iso and extrato.dt_fim_iso:
+            partes.append(f"{formatar_data(extrato.dt_inicio_iso)} a {formatar_data(extrato.dt_fim_iso)}")
+        partes.append(f"{len(extrato.transacoes)} lançamentos")
+        return "   ·   ".join(partes)
+
     def _atualizar_cabecalho(self) -> None:
         extrato = self.extrato
         if extrato is None:
             return
-        conta = extrato.conta
-        partes = []
-        if conta.descricao != conta.tipo_descricao:  # evita "Cartao de credito" duas vezes
-            partes.append(f"Instituicao: {conta.descricao}")
-        if conta.branch_id:
-            partes.append(f"Agencia: {conta.branch_id}")
-        partes.append(f"{conta.tipo_descricao or 'Conta'}: {conta.acct_id or 'nao informada'}")
-        if extrato.dt_inicio_iso and extrato.dt_fim_iso:
-            partes.append(f"Periodo: {formatar_data(extrato.dt_inicio_iso)} a {formatar_data(extrato.dt_fim_iso)}")
-        partes.append(f"Lancamentos: {len(extrato.transacoes)}")
+
+        self.lbl_banco.configure(text=extrato.conta.descricao)
+        self.lbl_conta.configure(text=self._detalhes_conta())
+
+        self._atualizar_cartoes()
 
         if extrato.saldo_final is not None:
-            saldos = (
-                f"Saldo anterior: R$ {formatar_valor_cd(extrato.saldo_inicial)}"
-                f"     Saldo final: R$ {formatar_valor_cd(extrato.saldo_final)}"
+            self.valores_cartao["saldo_anterior"].configure(
+                text=f"R$ {formatar_moeda(extrato.saldo_inicial)}", fg=self._cor_saldo(extrato.saldo_inicial)
+            )
+            self.valores_cartao["saldo_final"].configure(
+                text=f"R$ {formatar_moeda(extrato.saldo_final)}", fg=self._cor_saldo(extrato.saldo_final)
             )
         else:
-            saldos = "Saldos nao informados no arquivo (o banco nao enviou a tag LEDGERBAL)."
+            # o banco nao enviou LEDGERBAL: sem ele nao da para reconstruir a serie
+            for chave in ("saldo_anterior", "saldo_final"):
+                self.valores_cartao[chave].configure(text="não informado", fg=COR_TEXTO_FRACO)
 
-        self.info.configure(text="     ".join(partes) + "\n" + saldos)
+    def _atualizar_cartoes(self) -> None:
+        """Creditos e debitos seguem o que esta em tela; os saldos, nao.
+
+        Saldo anterior e final vem do arquivo e valem para o periodo inteiro -
+        filtrar a lista nao muda o saldo que o banco fechou.
+        """
+        creditos = sum(l.valor for l in self.visiveis if l.valor >= 0)
+        debitos = sum(l.valor for l in self.visiveis if l.valor < 0)
+        self.valores_cartao["creditos"].configure(text=f"R$ {formatar_moeda(creditos)}")
+        self.valores_cartao["debitos"].configure(text=f"R$ {formatar_moeda(abs(debitos))}")
+
+    @staticmethod
+    def _cor_saldo(valor: float | None) -> str:
+        return COR_DEBITO if (valor or 0.0) < 0 else COR_TEXTO
 
     # ------------------------------------------------------------------
     # Filtro, ordenacao e preenchimento da tabela
@@ -461,15 +719,16 @@ class ConciliaApp:
         filtro = self.var_filtro.get()
 
         linhas = self.linhas
-        if filtro == "Creditos":
+        if filtro == "Créditos":
             linhas = [l for l in linhas if l.valor >= 0]
-        elif filtro == "Debitos":
+        elif filtro == "Débitos":
             linhas = [l for l in linhas if l.valor < 0]
         if termo:
             termos = termo.split()
             linhas = [l for l in linhas if all(t in l.busca for t in termos)]
 
         self.visiveis = linhas
+        self._atualizar_cartoes()
         self._ordenar_visiveis()
         self._preencher_tabela()
         self._atualizar_status()
@@ -492,9 +751,9 @@ class ConciliaApp:
         coluna, invertido = self.ordenacao
         self.visiveis.sort(key=self._CHAVES[coluna], reverse=invertido)
         for nome in self._CHAVES:
-            texto = {"data": "Data", "tipo": "Tipo", "historico": "Historico", "valor": "Valor", "saldo": "Saldo"}[nome]
+            texto = {"data": "Data", "tipo": "Tipo", "historico": "Histórico", "valor": "Valor", "saldo": "Saldo"}[nome]
             if nome == coluna:
-                texto += "  v" if invertido else "  ^"
+                texto += "  ▼" if invertido else "  ▲"
             self.tree.heading(nome, text=texto)
 
     def _preencher_tabela(self) -> None:
@@ -509,7 +768,7 @@ class ConciliaApp:
         fim = min(inicio + LOTE_LINHAS, len(self.visiveis))
         for i in range(inicio, fim):
             linha = self.visiveis[i]
-            tags = ["debito" if linha.valor < 0 else "credito"]
+            tags = []
             if i % 2:
                 tags.append("zebra")
             inserir(
@@ -529,26 +788,24 @@ class ConciliaApp:
         self.btn_planilha.configure(state=estado)
 
         if not self.linhas:
-            self.status.configure(text="Nenhum lancamento neste extrato.")
+            self.status.configure(text="Nenhum lançamento neste extrato.")
             return
         if not self.visiveis:
             self.status.configure(
-                text=f"Nenhum dos {len(self.linhas)} lancamentos corresponde ao filtro atual."
+                text=f"Nenhum dos {len(self.linhas)} lançamentos corresponde ao filtro atual."
             )
             return
 
-        creditos = sum(l.valor for l in self.visiveis if l.valor >= 0)
-        debitos = sum(l.valor for l in self.visiveis if l.valor < 0)
         contagem = (
-            f"{len(self.visiveis)} de {len(self.linhas)} lancamentos"
+            f"Exibindo {len(self.visiveis)} de {len(self.linhas)} lançamentos"
             if len(self.visiveis) != len(self.linhas)
-            else f"{len(self.linhas)} lancamentos"
+            else f"{len(self.linhas)} lançamentos"
         )
-        self.status.configure(
-            text=f"{contagem}     Creditos: R$ {formatar_moeda(creditos)}"
-            f"     Debitos: R$ {formatar_moeda(abs(debitos))}"
-            f"     Resultado: R$ {formatar_valor_cd(creditos + debitos)}"
-        )
+        # Com filtro ativo os cartoes do topo passam a mostrar os totais do que
+        # esta em tela, e nao do extrato inteiro; o aviso evita a leitura errada.
+        if len(self.visiveis) != len(self.linhas):
+            contagem += "   ·   totais referentes ao filtro"
+        self.status.configure(text=contagem)
 
     # ------------------------------------------------------------------
     # Interacoes com a tabela
@@ -565,7 +822,7 @@ class ConciliaApp:
         linhas = self._linhas_selecionadas()
         if linhas:
             self._para_area_transferencia("\n".join(l.historico for l in linhas))
-            self.status.configure(text=f"{len(linhas)} historico(s) copiado(s).")
+            self.status.configure(text=f"{len(linhas)} histórico(s) copiado(s).")
         return "break"
 
     def _copiar_linhas(self, _evento=None) -> str:
@@ -588,7 +845,7 @@ class ConciliaApp:
     def _mostrar_detalhes(self, _evento=None) -> None:
         linhas = self._linhas_selecionadas()
         if linhas:
-            messagebox.showinfo("Detalhes do lancamento", linhas[0].detalhes, parent=self.root)
+            messagebox.showinfo("Detalhes do lançamento", linhas[0].detalhes, parent=self.root)
 
     # ------------------------------------------------------------------
     # Exportacoes
@@ -651,7 +908,7 @@ class ConciliaApp:
             author=EMPRESA,
         )
 
-        cabecalho = escapar_xml(self.info.cget("text")).replace("\n", "<br/>")
+        cabecalho = escapar_xml(self._resumo_para_pdf()).replace("\n", "<br/>")
         elementos = [
             Paragraph("Extrato Bancario", estilo_titulo),
             Spacer(1, 4),
@@ -721,6 +978,25 @@ class ConciliaApp:
             canvas.restoreState()
 
         doc.build(elementos, onFirstPage=rodape, onLaterPages=rodape)
+
+    def _resumo_para_pdf(self) -> str:
+        """Cabecalho do PDF, montado a partir do extrato.
+
+        Nao le mais o texto da tela: os dados agora estao distribuidos entre
+        varios rotulos e cartoes, e o PDF precisa da sua propria versao.
+        """
+        extrato = self.extrato
+        if extrato is None:
+            return ""
+        linhas = [f"{extrato.conta.descricao}   |   {self._detalhes_conta()}"]
+        if extrato.saldo_final is not None:
+            linhas.append(
+                f"Saldo anterior: R$ {formatar_valor_cd(extrato.saldo_inicial)}"
+                f"   |   Saldo final: R$ {formatar_valor_cd(extrato.saldo_final)}"
+            )
+        else:
+            linhas.append("Saldos nao informados no arquivo pelo banco")
+        return "\n".join(linhas)
 
     def exportar_planilha(self) -> None:
         if not self.visiveis:
