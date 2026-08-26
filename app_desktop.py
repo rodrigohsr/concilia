@@ -24,6 +24,7 @@ VERSAO = "1.1.0"
 DESCRICAO = "Conferencia de extratos bancarios em OFX"
 EMPRESA = "Esquema Assessoria Contabil"
 AVISO_LEGAL = "Extrato gerado para conferencia. Nao substitui o documento oficial do banco."
+URL_ULTIMA_VERSAO = "https://api.github.com/repos/rodrigohsr/concilia/releases/latest"
 
 # Paleta.
 #
@@ -98,13 +99,21 @@ class Linha:
     iso: str
     data: str
     tipo: str
-    historico: str
+    historico: str          # o texto exibido: o do banco, ou o editado
     valor: float
     saldo: float | None
     valor_txt: str
     saldo_txt: str
-    detalhes: str
-    busca: str  # historico + tipo em minusculas, para filtro rapido
+    busca: str              # historico + tipo em minusculas, para filtro rapido
+    chave: str              # identificador estavel do lancamento, para as edicoes
+    original: str           # historico como veio do banco, para poder desfazer
+    fit_id: str | None = None
+    check_num: str | None = None
+    ref_num: str | None = None
+
+    @property
+    def editado(self) -> bool:
+        return self.historico != self.original
 
 
 class ConciliaApp:
@@ -120,6 +129,11 @@ class ConciliaApp:
         self.ordenacao: tuple[str, bool] = ("data", False)
         self.geracao = 0  # invalida preenchimentos em andamento
         self._busca_agendada: str | None = None
+
+        self.modo_edicao = False
+        self.edicoes: dict[str, str] = {}   # chave do lancamento -> historico corrigido
+        self.editor: tk.Entry | None = None
+        self.editor_iid: str | None = None
 
         self._montar_janela()
         self._montar_cabecalho()
@@ -393,6 +407,16 @@ class ConciliaApp:
         )
         self.btn_planilha.pack(side="left", padx=(8, 0))
 
+        self.btn_editar = ttk.Button(
+            barra, text="Editar", style="Secundario.TButton", command=self._alternar_modo_edicao, state="disabled"
+        )
+        self.btn_editar.pack(side="left", padx=(8, 0))
+
+        # so aparece quando o extrato atual tem historicos corrigidos a mao
+        self.btn_restaurar = ttk.Button(
+            barra, text="Restaurar", style="Secundario.TButton", command=self._restaurar_historicos
+        )
+
         # Seletor de conta: so aparece em arquivos com mais de um extrato
         self.frame_conta = tk.Frame(barra, bg=COR_FUNDO)
         self.cb_conta = ttk.Combobox(self.frame_conta, state="readonly", width=32, style="Concilia.TCombobox")
@@ -464,6 +488,8 @@ class ConciliaApp:
         # extrato. Credito fica neutro - antes as duas cores brigavam em todas
         # as linhas e nenhuma delas informava nada.
         self.tree.tag_configure("zebra", background=COR_ZEBRA)
+        # historico corrigido a mao e excecao, entao aqui a cor informa
+        self.tree.tag_configure("editado", foreground=COR_DESTAQUE)
 
         vsb = ttk.Scrollbar(moldura, orient="vertical", command=self.tree.yview, style="Concilia.Vertical.TScrollbar")
         self.tree.configure(yscrollcommand=vsb.set)
@@ -473,7 +499,7 @@ class ConciliaApp:
         moldura.rowconfigure(0, weight=1)
         moldura.columnconfigure(0, weight=1)
 
-        self.tree.bind("<Double-1>", self._mostrar_detalhes)
+        self.tree.bind("<Double-1>", self._duplo_clique)
 
     def _montar_rodape(self) -> None:
         rodape = tk.Frame(self.root, bg=COR_FUNDO)
@@ -488,7 +514,19 @@ class ConciliaApp:
             padx=20,
             pady=8,
         )
-        self.status.pack(fill="x")
+        self.status.pack(side="left")
+
+        # so aparece quando houver versao nova publicada
+        self.aviso_atualizacao = tk.Label(
+            rodape,
+            text="",
+            bg=COR_FUNDO,
+            fg=COR_DESTAQUE,
+            font=(FONTE, 9, "bold"),
+            cursor="hand2",
+            pady=8,
+        )
+        self.aviso_atualizacao.bind("<Button-1>", self._abrir_pagina_atualizacao)
 
     def _montar_atalhos(self) -> None:
         self.root.bind("<Control-o>", lambda _e: self.selecionar_arquivo())
@@ -499,12 +537,82 @@ class ConciliaApp:
         self.tree.bind("<Control-c>", self._copiar_historico)
         self.tree.bind("<Control-C>", self._copiar_linhas)  # Ctrl+Shift+C
         self.tree.bind("<Control-a>", self._selecionar_tudo)
+        self.root.bind("<F2>", self._editar_selecionado)
+        self.root.bind("<Control-e>", lambda _e: self._alternar_modo_edicao())
 
     def _pos_inicializacao(self) -> None:
         self._carregar_logo()
         self._ativar_arrastar_soltar()
         if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):
             self.carregar(sys.argv[1])
+        self._verificar_atualizacao()
+
+    # ------------------------------------------------------------------
+    # Verificacao de atualizacao
+    # ------------------------------------------------------------------
+    def _verificar_atualizacao(self) -> None:
+        """Consulta a ultima versao publicada no GitHub, sem atrasar nada.
+
+        A consulta roda numa thread e o resultado e recolhido pelo laco do
+        Tkinter: widget de interface so pode ser tocado pela thread principal.
+        Falha de rede e silenciosa - o programa funciona offline.
+        """
+        if not self.config.get("verificar_atualizacoes", True):
+            return
+
+        self._versao_publicada: list = []
+
+        def consultar() -> None:
+            try:
+                import json as _json
+                import urllib.request
+
+                requisicao = urllib.request.Request(
+                    URL_ULTIMA_VERSAO,
+                    headers={"Accept": "application/vnd.github+json", "User-Agent": f"{APP_NOME}/{VERSAO}"},
+                )
+                with urllib.request.urlopen(requisicao, timeout=8) as resposta:
+                    dados = _json.load(resposta)
+                self._versao_publicada.append((dados.get("tag_name") or "", dados.get("html_url") or ""))
+            except Exception:
+                self._versao_publicada.append(None)
+
+        import threading
+
+        threading.Thread(target=consultar, daemon=True).start()
+        self.root.after(1200, self._recolher_resultado_atualizacao, 0)
+
+    def _recolher_resultado_atualizacao(self, tentativa: int) -> None:
+        if not self._versao_publicada:
+            if tentativa < 12:  # ~12 s de espera, depois desiste em silencio
+                self.root.after(1000, self._recolher_resultado_atualizacao, tentativa + 1)
+            return
+
+        resultado = self._versao_publicada[0]
+        if not resultado:
+            return
+        tag, endereco = resultado
+        publicada = self._numero_versao(tag)
+        if not publicada or publicada <= self._numero_versao(VERSAO):
+            return
+
+        self.endereco_atualizacao = endereco
+        self.aviso_atualizacao.configure(text=f"Versão {tag.lstrip('v')} disponível  ›")
+        self.aviso_atualizacao.pack(side="right", padx=20)
+
+    @staticmethod
+    def _numero_versao(texto: str) -> tuple[int, ...]:
+        """'v1.2.3' -> (1, 2, 3), para comparar versoes numericamente."""
+        import re
+
+        numeros = re.findall(r"\d+", texto or "")
+        return tuple(int(n) for n in numeros[:3])
+
+    def _abrir_pagina_atualizacao(self, _evento=None) -> None:
+        import webbrowser
+
+        if getattr(self, "endereco_atualizacao", ""):
+            webbrowser.open(self.endereco_atualizacao)
 
     def _carregar_logo(self) -> None:
         """Usa o PhotoImage nativo do Tk (le PNG sem depender do Pillow)."""
@@ -584,9 +692,11 @@ class ConciliaApp:
             )
             return
 
+        self._fechar_editor()
         self.caminho_atual = caminho
         self.extratos = extratos
         self.config["ultima_pasta"] = os.path.dirname(caminho)
+        self._carregar_edicoes(caminho)
 
         if len(extratos) > 1:
             self.cb_conta.configure(values=[self._rotulo_conta(e) for e in extratos])
@@ -616,25 +726,25 @@ class ConciliaApp:
         self._atualizar_cabecalho()
         self._aplicar_filtros()
 
-    @staticmethod
-    def _montar_linha(transacao) -> Linha:
+    def _chave_lancamento(self, transacao) -> str:
+        """Identificador estavel de um lancamento, para reencontrar sua edicao.
+
+        O FITID e o identificador que o proprio banco garante unico. Quando ele
+        falta, monta-se uma chave com data, valor e historico - o suficiente
+        para nao confundir lancamentos dentro de um mesmo extrato.
+        """
+        conta = (self.extrato.conta.acct_id if self.extrato else None) or "?"
+        if transacao.fit_id:
+            return f"{conta}:{transacao.fit_id}"
+        bruto = f"{transacao.dt_posted_iso}|{transacao.valor}|{(transacao.memo or transacao.name or '')[:60]}"
+        return f"{conta}:~{bruto}"
+
+    def _montar_linha(self, transacao) -> Linha:
         valor = transacao.valor or 0.0
-        historico = transacao.descricao or "(sem histórico)"
+        original = transacao.descricao or "(sem histórico)"
+        chave = self._chave_lancamento(transacao)
+        historico = self.edicoes.get(chave, original)
         tipo = transacao.tipo or ""
-        detalhes = "\n".join(
-            f"{rotulo}: {texto}"
-            for rotulo, texto in (
-                ("Data", formatar_data(transacao.dt_posted_iso)),
-                ("Tipo", tipo),
-                ("Valor", formatar_valor_cd(valor)),
-                ("Saldo após o lançamento", formatar_valor_cd(transacao.saldo)),
-                ("Documento", transacao.check_num),
-                ("Referência", transacao.ref_num),
-                ("Identificador (FITID)", transacao.fit_id),
-                ("Histórico", historico),
-            )
-            if texto
-        )
         return Linha(
             iso=transacao.dt_posted_iso or "",
             data=formatar_data(transacao.dt_posted_iso),
@@ -644,9 +754,29 @@ class ConciliaApp:
             saldo=transacao.saldo,
             valor_txt=formatar_valor_cd(valor),
             saldo_txt=formatar_valor_cd(transacao.saldo),
-            detalhes=detalhes,
             busca=f"{historico}\n{tipo}".lower(),
+            chave=chave,
+            original=original,
+            fit_id=transacao.fit_id,
+            check_num=transacao.check_num,
+            ref_num=transacao.ref_num,
         )
+
+    @staticmethod
+    def _detalhes_linha(linha: Linha) -> str:
+        campos = [
+            ("Data", linha.data),
+            ("Tipo", linha.tipo),
+            ("Valor", linha.valor_txt),
+            ("Saldo após o lançamento", linha.saldo_txt),
+            ("Documento", linha.check_num),
+            ("Referência", linha.ref_num),
+            ("Identificador (FITID)", linha.fit_id),
+            ("Histórico", linha.historico),
+        ]
+        if linha.editado:
+            campos.append(("Histórico original do banco", linha.original))
+        return "\n".join(f"{rotulo}: {texto}" for rotulo, texto in campos if texto)
 
     def _detalhes_conta(self) -> str:
         """Linha secundaria do cabecalho: agencia, conta, periodo e contagem."""
@@ -769,7 +899,7 @@ class ConciliaApp:
         fim = min(inicio + LOTE_LINHAS, len(self.visiveis))
         for i in range(inicio, fim):
             linha = self.visiveis[i]
-            tags = []
+            tags = ["editado"] if linha.editado else []
             if i % 2:
                 tags.append("zebra")
             inserir(
@@ -787,6 +917,8 @@ class ConciliaApp:
         estado = "normal" if self.visiveis else "disabled"
         self.btn_pdf.configure(state=estado)
         self.btn_planilha.configure(state=estado)
+        self.btn_editar.configure(state="normal" if self.linhas else "disabled")
+        self._atualizar_botao_restaurar()
 
         if not self.linhas:
             self.status.configure(text="Nenhum lançamento neste extrato.")
@@ -846,7 +978,192 @@ class ConciliaApp:
     def _mostrar_detalhes(self, _evento=None) -> None:
         linhas = self._linhas_selecionadas()
         if linhas:
-            messagebox.showinfo("Detalhes do lançamento", linhas[0].detalhes, parent=self.root)
+            messagebox.showinfo("Detalhes do lançamento", self._detalhes_linha(linhas[0]), parent=self.root)
+
+    # ------------------------------------------------------------------
+    # Modo de edicao do historico
+    # ------------------------------------------------------------------
+    def _caminho_edicoes(self, caminho_ofx: str) -> str:
+        """Arquivo de edicoes correspondente a um OFX.
+
+        Fica em %APPDATA%, e nao ao lado do extrato: o arquivo do cliente e
+        so lido, nunca modificado, e a pasta de origem pode ser somente leitura
+        ou estar numa rede. O nome vem do caminho completo, para dois extratos
+        de mesmo nome em pastas diferentes nao se misturarem.
+        """
+        import hashlib
+
+        digest = hashlib.sha1(os.path.abspath(caminho_ofx).lower().encode("utf-8")).hexdigest()[:16]
+        return os.path.join(os.path.dirname(caminho_config()), "edicoes", f"{digest}.json")
+
+    def _carregar_edicoes(self, caminho_ofx: str) -> None:
+        self.edicoes = {}
+        try:
+            with open(self._caminho_edicoes(caminho_ofx), encoding="utf-8") as arquivo:
+                dados = json.load(arquivo)
+            historicos = dados.get("historicos")
+            if isinstance(historicos, dict):
+                self.edicoes = {c: t for c, t in historicos.items() if isinstance(t, str)}
+        except FileNotFoundError:
+            pass
+        except Exception:
+            pass  # arquivo corrompido nao pode impedir a abertura do extrato
+
+    def _salvar_edicoes(self) -> None:
+        if not self.caminho_atual:
+            return
+        destino = self._caminho_edicoes(self.caminho_atual)
+        try:
+            if not self.edicoes:
+                if os.path.exists(destino):
+                    os.remove(destino)
+                return
+            os.makedirs(os.path.dirname(destino), exist_ok=True)
+            with open(destino, "w", encoding="utf-8") as arquivo:
+                json.dump(
+                    {"versao": 1, "extrato": self.caminho_atual, "historicos": self.edicoes},
+                    arquivo,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+        except Exception as exc:
+            self.status.configure(text=f"Não foi possível gravar as edições: {exc}")
+
+    def _alternar_modo_edicao(self) -> None:
+        self.modo_edicao = not self.modo_edicao
+        self.btn_editar.configure(
+            text="Editando" if self.modo_edicao else "Editar",
+            style="Acao.TButton" if self.modo_edicao else "Secundario.TButton",
+        )
+        if self.modo_edicao:
+            self.status.configure(
+                text="Modo de edição: duplo clique ou F2 sobre o lançamento para corrigir o histórico."
+                "   ·   Enter confirma, Esc cancela, campo vazio restaura o texto do banco."
+            )
+        else:
+            self._fechar_editor()
+            self._atualizar_status()
+
+    def _duplo_clique(self, evento) -> str | None:
+        """Em modo de edicao abre o editor; fora dele, mostra os detalhes."""
+        if not self.modo_edicao:
+            self._mostrar_detalhes()
+            return None
+        iid = self.tree.identify_row(evento.y)
+        if iid:
+            self._abrir_editor(iid)
+        return "break"
+
+    def _editar_selecionado(self, _evento=None) -> str:
+        if self.modo_edicao:
+            selecao = self.tree.selection()
+            if selecao:
+                self._abrir_editor(selecao[0])
+        return "break"
+
+    def _abrir_editor(self, iid: str) -> None:
+        if not iid.isdigit() or int(iid) >= len(self.visiveis):
+            return
+        self._fechar_editor()
+
+        self.tree.see(iid)
+        caixa = self.tree.bbox(iid, "historico")
+        if not caixa:  # linha fora da area visivel
+            return
+        x, y, largura, altura = caixa
+
+        linha = self.visiveis[int(iid)]
+        self.editor_iid = iid
+        self.editor = tk.Entry(
+            self.tree,
+            font=(FONTE, 9),
+            justify="center",
+            relief="solid",
+            borderwidth=1,
+            highlightthickness=1,
+            highlightcolor=COR_DESTAQUE,
+            highlightbackground=COR_DESTAQUE,
+        )
+        self.editor.insert(0, linha.historico)
+        self.editor.select_range(0, "end")
+        self.editor.place(x=x, y=y, width=largura, height=altura)
+        self.editor.focus_set()
+
+        self.editor.bind("<Return>", lambda _e: self._confirmar_edicao())
+        self.editor.bind("<KP_Enter>", lambda _e: self._confirmar_edicao())
+        self.editor.bind("<Escape>", lambda _e: self._fechar_editor())
+        self.editor.bind("<FocusOut>", lambda _e: self._confirmar_edicao())
+
+    def _fechar_editor(self) -> None:
+        if self.editor is not None:
+            editor, self.editor = self.editor, None
+            self.editor_iid = None
+            editor.destroy()
+
+    def _confirmar_edicao(self) -> None:
+        if self.editor is None or self.editor_iid is None:
+            return
+        iid, texto = self.editor_iid, self.editor.get().strip()
+        self._fechar_editor()
+
+        if not iid.isdigit() or int(iid) >= len(self.visiveis):
+            return
+        linha = self.visiveis[int(iid)]
+
+        # campo vazio devolve o texto original do banco
+        novo = texto or linha.original
+        if novo == linha.historico:
+            return
+
+        linha.historico = novo
+        linha.busca = f"{novo}\n{linha.tipo}".lower()
+        if novo == linha.original:
+            self.edicoes.pop(linha.chave, None)
+        else:
+            self.edicoes[linha.chave] = novo
+
+        self.tree.item(iid, values=(linha.data, linha.tipo, novo, linha.valor_txt, linha.saldo_txt))
+        self._marcar_linha(iid, int(iid), linha)
+        self._salvar_edicoes()
+        self._atualizar_botao_restaurar()
+
+        editados = sum(1 for l in self.linhas if l.editado)
+        self.status.configure(
+            text=f"Histórico atualizado.   ·   {editados} lançamento(s) editado(s) neste extrato."
+        )
+
+    def _atualizar_botao_restaurar(self) -> None:
+        """Botao de desfazer so existe enquanto ha o que desfazer."""
+        if self.edicoes:
+            self.btn_restaurar.pack(side="left", padx=(8, 0), after=self.btn_editar)
+        else:
+            self.btn_restaurar.pack_forget()
+
+    def _marcar_linha(self, iid: str, indice: int, linha: Linha) -> None:
+        """Aplica as tags visuais de uma linha (zebra e marca de editado)."""
+        tags = ["editado"] if linha.editado else []
+        if indice % 2:
+            tags.append("zebra")
+        self.tree.item(iid, tags=tags)
+
+    def _restaurar_historicos(self) -> None:
+        if not self.edicoes:
+            return
+        quantos = len(self.edicoes)
+        if not messagebox.askyesno(
+            "Restaurar históricos",
+            f"Desfazer {quantos} edição(ões) e voltar ao texto original do banco?",
+            parent=self.root,
+        ):
+            return
+        self.edicoes = {}
+        self._salvar_edicoes()
+        for linha in self.linhas:
+            linha.historico = linha.original
+            linha.busca = f"{linha.original}\n{linha.tipo}".lower()
+        self._fechar_editor()
+        self._aplicar_filtros()
+        self.status.configure(text=f"{quantos} edição(ões) desfeita(s).")
 
     # ------------------------------------------------------------------
     # Exportacoes
