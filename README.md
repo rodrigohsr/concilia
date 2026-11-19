@@ -1,7 +1,6 @@
 # Concilia
 
-Conferência de extratos bancários em OFX. Aplicativo desktop usado no fluxo de
-trabalho da Esquema Assessoria Contábil.
+Conferência de extratos bancários em OFX. Aplicativo desktop para Windows.
 
 ```
 python app_desktop.py                  # abre a janela
@@ -48,10 +47,10 @@ e `.qfx` ao programa — dá para dar duplo clique no extrato que ele abre diret
 A associação usa um ProgId próprio: se a máquina já tem outro programa que abre
 OFX, os dois continuam aparecendo em "Abrir com", nenhum atropela o outro.
 
-### No servidor (SRV-ESQUEMA)
+### Em um servidor RD Session Host
 
-O escritório trabalha por área de trabalho remota em um RD Session Host, então
-**uma instalação atende todos os usuários** — não há nada para distribuir máquina
+Quando os usuários trabalham por área de trabalho remota em um RD Session Host,
+**uma instalação atende todos eles** — não há nada para distribuir máquina
 a máquina. Como administrador:
 
 ```powershell
@@ -159,7 +158,7 @@ hora em hora.
 | `legacy/` | versão anterior, mantida para consulta |
 
 Se existir um `logo.png` na pasta, ele aparece no cabeçalho da janela no lugar
-do nome do programa — é o lugar de colocar o logo do escritório.
+do nome do programa.
 
 ## Notas de manutenção
 

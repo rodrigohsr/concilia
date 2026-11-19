@@ -1,8 +1,8 @@
 # Instala o Concilia para TODOS os usuarios deste servidor.
 #
-# Feito para o SRV-ESQUEMA, que e um RD Session Host: os usuarios do escritorio
-# entram por area de trabalho remota, entao uma unica instalacao para todos
-# atende o escritorio inteiro. Nao ha nada para distribuir maquina a maquina.
+# Feito para um RD Session Host: como os usuarios entram por area de trabalho
+# remota, uma unica instalacao atende todos. Nao ha nada para distribuir
+# maquina a maquina.
 #
 # Precisa ser executado como administrador:
 #   Start-Process powershell -Verb RunAs -ArgumentList '-File','.\instalar_no_servidor.ps1'

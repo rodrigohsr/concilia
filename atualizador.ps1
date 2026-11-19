@@ -2,7 +2,7 @@
 Atualizador automatico do Concilia.
 
 Roda como SYSTEM numa tarefa agendada que o proprio instalador cria quando
-instala para todos os usuarios (o caso do SRV-ESQUEMA). Usuario comum nao tem
+instala para todos os usuarios (o caso de um RD Session Host). Usuario comum nao tem
 permissao de escrever em Program Files, entao a instalacao nao pode partir do
 programa aberto: parte daqui.
 
