@@ -40,7 +40,7 @@ Também é possível arrastar o arquivo OFX para dentro da janela.
 
 ## Instalação
 
-O instalador está anexado à release mais recente: `Concilia-1.2.0-setup.exe`.
+O instalador está anexado à release mais recente: `Concilia-1.2.1-setup.exe`.
 
 Cria atalho no menu iniciar e na área de trabalho, e associa os arquivos `.ofx`
 e `.qfx` ao programa — dá para dar duplo clique no extrato que ele abre direto.
@@ -74,7 +74,7 @@ atual, **sem pedir senha de administrador** — útil onde o usuário não é ad
 Silenciosamente:
 
 ```
-Concilia-1.2.0-setup.exe /VERYSILENT /NORESTART /TASKS=associar,desktopicon
+Concilia-1.2.1-setup.exe /VERYSILENT /NORESTART /TASKS=associar,desktopicon
 ```
 
 Acrescente `/ALLUSERS` (com privilégio de administrador) para instalar para
@@ -82,23 +82,27 @@ todos os usuários da máquina.
 
 ### Atualização automática
 
-Na instalação para todos os usuários, o instalador cria a tarefa agendada
-**Concilia - atualizacao automatica**, que roda como SYSTEM de hora em hora e na
-inicialização do servidor. Ela executa `atualizador.ps1` (instalado ao lado do
-programa), que:
+A busca por versão nova acontece **só quando o programa abre** — não há
+verificação de hora em hora. Se encontrou uma, o programa mostra "Versão X
+disponível · instala sozinha quando ninguém estiver usando" e, **ao ser fechado**,
+dispara a tarefa agendada **Concilia - atualizacao automatica**.
+
+A tarefa, criada pelo instalador na instalação para todos os usuários, não tem
+horário: roda como SYSTEM só quando disparada. Usuários comuns podem dispará-la,
+nada além disso. Ela executa `atualizador.ps1` (instalado ao lado do programa), que:
 
 1. compara a versão instalada com a última release do GitHub;
 2. baixa o `Concilia-X.Y.Z-setup.exe` da release e confere o sha256 publicado
    pelo GitHub e a versão gravada no próprio `.exe`;
-3. instala em silêncio, **só com o Concilia fechado em todas as sessões**. Entre
-   1h e 6h fecha as cópias esquecidas em sessões *desconectadas* — nunca nas
-   ativas. As edições de histórico já estão gravadas em disco; só a tela se perde.
+3. instala em silêncio, **só com o Concilia fechado em todas as sessões ativas**.
+   Cópias esquecidas em sessões *desconectadas* são fechadas — as edições de
+   histórico já estão gravadas em disco; só a tela se perde.
 
-Enquanto isso, quem abre o programa vê "Versão X disponível · será instalada
-automaticamente". O registro fica em `C:\Program Files\Concilia\atualizacao\atualizador.log`.
+Na prática, quem fecha o programa por último instala a versão nova. O registro
+fica em `C:\Program Files\Concilia\atualizacao\atualizador.log`.
 
 Para conferir sem instalar nada: `.\atualizador.ps1 -Simular`. Para desligar,
-desative a tarefa no Agendador — as próximas versões não a reativam.
+desative a tarefa no Agendador.
 
 A instalação só para o usuário atual não cria a tarefa: lá o aviso continua
 levando à página da release.
@@ -120,7 +124,7 @@ pacote falta e a exportação em CSV segue disponível sem instalar nada.
 
 ```powershell
 .\build.ps1                 # gera dist\Concilia\Concilia.exe
-.\build_installer.ps1       # gera dist\Concilia-1.2.0-setup.exe (roda o build antes)
+.\build_installer.ps1       # gera dist\Concilia-1.2.1-setup.exe (roda o build antes)
 ```
 
 O `build_installer.ps1` precisa do [Inno Setup 6](https://jrsoftware.org/isdl.php).

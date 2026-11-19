@@ -94,7 +94,7 @@ $menu = Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs\Concil
 if (Test-Path $menu) { Write-Host "OK    menu iniciar de todos os usuarios" } else { Write-Host "AVISO atalho do menu iniciar ausente" }
 
 $tarefa = Get-ScheduledTask -TaskName "Concilia - atualizacao automatica" -EA SilentlyContinue
-if ($tarefa) { Write-Host "OK    atualizacao automatica: tarefa $($tarefa.State), de hora em hora como SYSTEM" }
+if ($tarefa) { Write-Host "OK    atualizacao automatica: tarefa $($tarefa.State), disparada pelo programa ao fechar" }
 else { Write-Host "AVISO tarefa de atualizacao automatica ausente" }
 
 $publico = Join-Path $env:PUBLIC "Desktop\Concilia.lnk"

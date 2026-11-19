@@ -20,7 +20,7 @@ from tkinter import filedialog, messagebox, ttk
 from ofx_parser import ExtratoOFX, OFXParserBR
 
 APP_NOME = "Concilia"
-VERSAO = "1.2.0"
+VERSAO = "1.2.1"
 DESCRICAO = "Conferencia de extratos bancarios em OFX"
 EMPRESA = "Esquema Assessoria Contabil"
 AVISO_LEGAL = "Extrato gerado para conferencia. Nao substitui o documento oficial do banco."
@@ -73,6 +73,28 @@ def atualizacao_automatica() -> bool:
             return bool(winreg.QueryValueEx(chave, "AtualizacaoAutomatica")[0])
     except Exception:
         return False
+
+
+TAREFA_ATUALIZACAO = "Concilia - atualizacao automatica"
+
+
+def disparar_atualizacao() -> None:
+    """Pede ao servidor para instalar a versao nova (tarefa do atualizador.ps1).
+
+    So dispara e segue: a tarefa roda como SYSTEM, confere a release de novo e
+    so instala se ninguem mais estiver com o programa aberto.
+    """
+    try:
+        import subprocess
+
+        subprocess.Popen(
+            ["schtasks", "/Run", "/TN", TAREFA_ATUALIZACAO],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except Exception:
+        pass
 
 
 def caminho_config() -> str:
@@ -629,8 +651,10 @@ class ConciliaApp:
         self.endereco_atualizacao = endereco
         texto = f"Versão {tag.lstrip('v')} disponível"
         if atualizacao_automatica():
-            # no servidor o usuario nao consegue instalar; so precisa saber que vem
-            texto += " · será instalada automaticamente"
+            # no servidor o usuario nao instala nada; ao fechar, o programa
+            # dispara a tarefa que instala (ver _ao_fechar)
+            self.atualizar_ao_fechar = True
+            texto += " · instala sozinha quando ninguém estiver usando"
         self.aviso_atualizacao.configure(text=f"{texto}  ›")
         self.aviso_atualizacao.pack(side="right", padx=20)
 
@@ -1497,6 +1521,8 @@ class ConciliaApp:
 
     def _ao_fechar(self) -> None:
         self._salvar_config()
+        if getattr(self, "atualizar_ao_fechar", False):
+            disparar_atualizacao()
         self.root.destroy()
 
 

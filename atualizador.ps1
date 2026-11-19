@@ -1,21 +1,26 @@
 <#
 Atualizador automatico do Concilia.
 
-Roda como SYSTEM, de hora em hora e na inicializacao do servidor, numa tarefa
-agendada que o proprio instalador cria quando instala para todos os usuarios (o
-caso do SRV-ESQUEMA). Usuario comum nao tem permissao de escrever em Program
-Files, entao a atualizacao nao pode partir do programa aberto: parte daqui.
+Roda como SYSTEM numa tarefa agendada que o proprio instalador cria quando
+instala para todos os usuarios (o caso do SRV-ESQUEMA). Usuario comum nao tem
+permissao de escrever em Program Files, entao a instalacao nao pode partir do
+programa aberto: parte daqui.
+
+A tarefa nao tem horario. A busca por versao nova acontece so quando o Concilia
+abre; se ele encontrou uma, dispara esta tarefa ao ser fechado. Usuarios comuns
+podem disparar a tarefa, nada alem disso - o que se instala continua decidido
+aqui, pela release do GitHub.
 
 A cada execucao:
   1. le a versao instalada no registro de desinstalacao do Inno Setup;
   2. consulta a ultima release do GitHub;
   3. se houver versao nova, baixa o instalador e confere o sha256 publicado pelo
      GitHub e a versao gravada no proprio .exe - um instalador velho anexado a
-     uma release nova seria reinstalado toda hora, sem fim;
-  4. instala em silencio, mas so com o Concilia fechado em todas as sessoes. De
-     madrugada fecha as copias esquecidas em sessoes DESCONECTADAS (nunca nas
-     ativas): as edicoes de historico ja vao para o disco a cada alteracao, entao
-     nada se perde - so a tela aberta.
+     uma release nova seria reinstalado a cada fechamento, sem fim;
+  4. instala em silencio, mas so com o Concilia fechado em todas as sessoes
+     ativas. Copias esquecidas em sessoes DESCONECTADAS sao fechadas: as edicoes
+     de historico ja vao para o disco a cada alteracao, entao nada se perde - so
+     a tela aberta. Sem isso uma sessao largada por dias travaria a atualizacao.
 
 Uso:
   atualizador.ps1              verifica e instala (o que a tarefa executa)
@@ -39,8 +44,8 @@ $ProgressPreference = "SilentlyContinue"   # a barra de progresso deixa o downlo
 $Repositorio = "rodrigohsr/concilia"
 $ChaveDesinstalacao = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{8F3C21D7-4B6E-4A55-9E2C-7D1A0C5B93E4}_is1"
 $NomeTarefa = "Concilia - atualizacao automatica"
-$ChaveMarca = "HKLM:\SOFTWARE\Concilia"   # o programa le daqui para avisar que a versao nova vem sozinha
-$Madrugada = 1..5                          # horas em que copias em sessoes desconectadas podem ser fechadas
+$DefinicaoTarefa = "def 2"                 # mude ao alterar a tarefa: o -Registrar refaz a que estiver diferente
+$ChaveMarca = "HKLM:\SOFTWARE\Concilia"   # o programa le daqui para saber que pode disparar a tarefa
 
 $Pasta = if ($Simular) { Join-Path $env:TEMP "concilia-atualizacao" } else { Join-Path $PSScriptRoot "atualizacao" }
 $Log = Join-Path $Pasta "atualizador.log"
@@ -48,21 +53,28 @@ $Log = Join-Path $Pasta "atualizador.log"
 
 # ---- tarefa agendada --------------------------------------------------------
 if ($Registrar) {
-    # Se ja existe, fica como esta: o instalador chama -Registrar tambem quando
-    # e a propria tarefa que esta atualizando o programa, e quem desativou a
-    # tarefa de proposito nao a ve voltar a cada versao.
-    if (-not (Get-ScheduledTask -TaskName $NomeTarefa -ErrorAction SilentlyContinue)) {
+    # So refaz a tarefa quando a definicao mudou: o instalador chama -Registrar
+    # tambem quando e a propria tarefa que esta atualizando o programa, e quem
+    # desativou a tarefa de proposito nao a ve voltar a cada versao.
+    $existente = Get-ScheduledTask -TaskName $NomeTarefa -ErrorAction SilentlyContinue
+    if (-not $existente -or -not "$($existente.Description)".Contains("($DefinicaoTarefa)")) {
         $acao = New-ScheduledTaskAction -Execute "powershell.exe" `
             -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$PSCommandPath`""
-        $gatilhos = @(
-            (New-ScheduledTaskTrigger -Once -At (Get-Date).Date.AddMinutes(17) -RepetitionInterval (New-TimeSpan -Hours 1)),
-            (New-ScheduledTaskTrigger -AtStartup)
-        )
-        $ajustes = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew `
-            -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
+        $ajustes = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
         $conta = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-        Register-ScheduledTask -TaskName $NomeTarefa -Action $acao -Trigger $gatilhos -Settings $ajustes `
-            -Principal $conta -Description "Instala as versoes novas do Concilia publicadas no GitHub." | Out-Null
+        # sem -Trigger: quem dispara e o Concilia, ao fechar
+        Register-ScheduledTask -TaskName $NomeTarefa -Action $acao -Settings $ajustes -Principal $conta -Force `
+            -Description "Instala a versao nova do Concilia publicada no GitHub. Disparada pelo programa ao fechar. ($DefinicaoTarefa)" | Out-Null
+
+        # Usuarios autenticados podem ler e executar (GRGX) a tarefa - e o que
+        # permite ao Concilia aberto por um usuario comum dispara-la.
+        $servico = New-Object -ComObject "Schedule.Service"
+        $servico.Connect()
+        $tarefa = $servico.GetFolder("\").GetTask($NomeTarefa)
+        $sddl = $tarefa.GetSecurityDescriptor(7)   # dono, grupo e DACL
+        if ($sddl -notmatch "\(A;;GRGX;;;AU\)") {
+            $tarefa.SetSecurityDescriptor(($sddl -replace "D:([A-Z]*)", 'D:$1(A;;GRGX;;;AU)'), 0)
+        }
     }
     New-Item -Path $ChaveMarca -Force | Out-Null
     Set-ItemProperty -Path $ChaveMarca -Name "AtualizacaoAutomatica" -Value 1 -Type DWord
@@ -178,8 +190,14 @@ try {
     }
 
     # ---- ninguem pode estar com o programa aberto ---------------------------
-    $abertos = @(Get-Process -Name "Concilia" -ErrorAction SilentlyContinue)
-    if ($abertos.Count -and ((Get-Date).Hour -in $Madrugada)) {
+    # A tarefa e disparada pelo proprio Concilia enquanto ele fecha: da alguns
+    # segundos para essa copia terminar antes de concluir que ha alguem usando.
+    for ($tentativa = 0; $tentativa -lt 4; $tentativa++) {
+        $abertos = @(Get-Process -Name "Concilia" -ErrorAction SilentlyContinue)
+        if (-not $abertos.Count) { break }
+        Start-Sleep -Seconds 3
+    }
+    if ($abertos.Count) {
         $desconectadas = Sessoes-Desconectadas
         $esquecidos = @($abertos | Where-Object { $desconectadas -contains $_.SessionId })
         if ($esquecidos.Count) {
