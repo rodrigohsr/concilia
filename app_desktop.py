@@ -153,8 +153,13 @@ class ConciliaApp:
     def _montar_janela(self) -> None:
         # a versao no titulo torna imediato saber qual build esta rodando
         self.root.title(f"{APP_NOME} {VERSAO} - {EMPRESA}")
-        self.root.geometry(self.config.get("geometria", "1200x680"))
+        self._geometria_normal = self.config.get("geometria", "1200x680")
+        self.root.geometry(self._geometria_normal)
         self.root.minsize(900, 480)
+        # Abre maximizada por padrao; so abre em janela quem fechou em janela.
+        if self.config.get("maximizada", True):
+            self.root.state("zoomed")
+        self.root.bind("<Configure>", self._ao_redimensionar, add="+")
         for icone in ("concilia.ico", "cifrao.ico"):
             try:
                 self.root.iconbitmap(resource_path(icone))
@@ -1422,9 +1427,18 @@ class ConciliaApp:
         except Exception:
             return {}
 
+    def _ao_redimensionar(self, evento: tk.Event) -> None:
+        # O Tk nao informa o tamanho "restaurado" de uma janela maximizada:
+        # guardamos o ultimo tamanho visto em estado normal para salvar esse.
+        if evento.widget is self.root and self.root.state() == "normal":
+            self._geometria_normal = self.root.geometry()
+
     def _salvar_config(self) -> None:
         try:
-            self.config["geometria"] = self.root.geometry()
+            estado = self.root.state()
+            if estado in ("normal", "zoomed"):  # minimizada mantem o anterior
+                self.config["maximizada"] = estado == "zoomed"
+            self.config["geometria"] = self._geometria_normal
             caminho = caminho_config()
             os.makedirs(os.path.dirname(caminho), exist_ok=True)
             with open(caminho, "w", encoding="utf-8") as arquivo:
