@@ -1,198 +1,55 @@
 # Concilia
 
-Conferência de extratos bancários em OFX. Aplicativo desktop para Windows.
-
-```
-python app_desktop.py                  # abre a janela
-python app_desktop.py extrato.ofx      # já abre com o arquivo carregado
-python ofx_parser.py extrato.ofx       # imprime o extrato em JSON
-python -m unittest                     # roda os testes
-```
-
-## O que o programa faz
-
-- Lê OFX 1.x (SGML) e 2.x (XML), incluindo arquivos com mais de uma conta
-  (conta corrente + cartão de crédito no mesmo arquivo).
-- Reconstrói o **saldo após cada lançamento** a partir do saldo consolidado
-  informado pelo banco (`LEDGERBAL`), e mostra o saldo anterior do período.
-- Localiza lançamentos por texto (vários termos, em qualquer ordem) e filtra
-  por créditos ou débitos. Os totais no rodapé acompanham o que está filtrado.
-- Ordena por qualquer coluna, clicando no cabeçalho.
-- Exporta em **PDF**, **XLSX** e **CSV** — sempre o que está sendo exibido, e o
-  PDF avisa quando a exportação está filtrada.
-- Duplo clique em uma linha mostra os detalhes (documento, FITID, referência).
-
-### Atalhos
-
-| Atalho | Ação |
-| --- | --- |
-| `Ctrl+O` | abrir arquivo |
-| `F5` | recarregar o arquivo atual |
-| `Ctrl+F` | ir para a busca |
-| `Esc` | limpar a busca |
-| `Ctrl+C` | copiar só o histórico das linhas selecionadas |
-| `Ctrl+Shift+C` | copiar as linhas inteiras, prontas para colar no Excel |
-| `Ctrl+A` | selecionar todos os lançamentos |
-| `Ctrl+P` | exportar em PDF |
-
-Também é possível arrastar o arquivo OFX para dentro da janela.
+Leitor de extratos bancários em OFX para Windows. Abre o arquivo, mostra os
+lançamentos com o saldo de cada linha e exporta para PDF, Excel ou CSV.
 
 ## Instalação
 
-O instalador está anexado à release mais recente: `Concilia-1.2.2-setup.exe`.
+Baixe o instalador na [última release](https://github.com/rodrigohsr/concilia/releases/latest)
+e execute.
 
-Cria atalho no menu iniciar e na área de trabalho, e associa os arquivos `.ofx`
-e `.qfx` ao programa — dá para dar duplo clique no extrato que ele abre direto.
-
-A associação usa um ProgId próprio: se a máquina já tem outro programa que abre
-OFX, os dois continuam aparecendo em "Abrir com", nenhum atropela o outro.
-
-### Em um servidor RD Session Host
-
-Quando os usuários trabalham por área de trabalho remota em um RD Session Host,
-**uma instalação atende todos eles** — não há nada para distribuir máquina
-a máquina. Como administrador:
+Para instalar para todos os usuários de um servidor de terminal, rode como
+administrador:
 
 ```powershell
 .\instalar_no_servidor.ps1
 ```
 
-O script coloca o servidor em modo de instalação (`change user /install`), que é
-o procedimento documentado para que o programa valha inclusive para usuários que
-ainda não logaram, instala com `/ALLUSERS` e confere o resultado. Ele se recusa
-a rodar se alguém estiver com o Concilia aberto, para não instalar por cima de
-arquivos em uso.
+## Uso
 
-As preferências de cada um (última pasta, tamanho da janela) ficam separadas em
-`%APPDATA%\Concilia`, uma por usuário.
+Abra o `.ofx` pelo botão, arrastando para a janela ou com duplo clique no
+arquivo. A busca aceita vários termos e o filtro separa créditos de débitos.
+Clique no cabeçalho de uma coluna para ordenar.
 
-### Em uma máquina avulsa
+O botão Editar permite corrigir o histórico de um lançamento. A correção fica
+salva no computador; o arquivo OFX não é alterado.
 
-Basta executar o instalador. Sem `/ALLUSERS` ele instala só para o usuário
-atual, **sem pedir senha de administrador** — útil onde o usuário não é admin.
-Silenciosamente:
-
-```
-Concilia-1.2.2-setup.exe /VERYSILENT /NORESTART /TASKS=associar,desktopicon
-```
-
-Acrescente `/ALLUSERS` (com privilégio de administrador) para instalar para
-todos os usuários da máquina.
-
-### Atualização automática
-
-A busca por versão nova acontece **só quando o programa abre** — não há
-verificação de hora em hora. Se encontrou uma, o programa mostra "Versão X
-disponível · instala sozinha quando ninguém estiver usando" e, **ao ser fechado**,
-dispara a tarefa agendada **Concilia - atualizacao automatica**.
-
-A tarefa, criada pelo instalador na instalação para todos os usuários, não tem
-horário: roda como SYSTEM só quando disparada. Usuários comuns podem dispará-la,
-nada além disso. Ela executa `atualizador.ps1` (instalado ao lado do programa), que:
-
-1. compara a versão instalada com a última release do GitHub;
-2. baixa o `Concilia-X.Y.Z-setup.exe` da release e confere o sha256 publicado
-   pelo GitHub e a versão gravada no próprio `.exe`;
-3. instala em silêncio, **só com o Concilia fechado em todas as sessões ativas**.
-   Cópias esquecidas em sessões *desconectadas* são fechadas — as edições de
-   histórico já estão gravadas em disco; só a tela se perde.
-
-Na prática, quem fecha o programa por último instala a versão nova. O registro
-fica em `C:\Program Files\Concilia\atualizacao\atualizador.log`.
-
-Para conferir sem instalar nada: `.\atualizador.ps1 -Simular`. Para desligar,
-desative a tarefa no Agendador.
-
-A instalação só para o usuário atual não cria a tarefa: lá o aviso continua
-levando à página da release.
+| Atalho | Ação |
+| --- | --- |
+| `Ctrl+O` | abrir arquivo |
+| `F5` | recarregar |
+| `Ctrl+F` | buscar |
+| `Ctrl+C` | copiar o histórico das linhas selecionadas |
+| `Ctrl+Shift+C` | copiar as linhas inteiras |
+| `Ctrl+P` | exportar em PDF |
 
 ## Desenvolvimento
 
-O parser e a interface usam **apenas a biblioteca padrão** (Python 3.10+).
-`reportlab`, `openpyxl`, `windnd` e `pillow` são opcionais e carregados só
-quando a função correspondente é usada — veja `requirements.txt`.
+Requer Python 3.10 ou mais novo.
 
 ```
 pip install -r requirements.txt
+python app_desktop.py
+python -m unittest
 ```
 
-Sem `reportlab` ou `openpyxl` o programa continua funcionando: ele avisa qual
-pacote falta e a exportação em CSV segue disponível sem instalar nada.
-
-### Gerando o executável e o instalador
+Para gerar o instalador, com o [Inno Setup 6](https://jrsoftware.org/isdl.php)
+instalado:
 
 ```powershell
-.\build.ps1                 # gera dist\Concilia\Concilia.exe
-.\build_installer.ps1       # gera dist\Concilia-1.2.2-setup.exe (roda o build antes)
+.\build_installer.ps1
 ```
 
-O `build_installer.ps1` precisa do [Inno Setup 6](https://jrsoftware.org/isdl.php).
-
-O build usa `--onedir` de propósito. Com `--onefile` o executável se descompacta
-em uma pasta temporária **a cada abertura**, o que costuma custar de 2 a 5
-segundos toda vez. Em `--onedir` a janela abre em cerca de 0,7 s na primeira
-execução e mais rápido nas seguintes.
-
-Ao subir a versão, altere `VERSAO` em `app_desktop.py` e `#define Versao` em
-`installer.iss`. **Não altere o `AppId`** no `installer.iss`: é ele que faz o
-instalador reconhecer e substituir a instalação anterior em vez de criar uma
-segunda cópia.
-
-Para publicar, crie a release com a tag `vX.Y.Z` **igual** à `VERSAO` e anexe o
-`dist\Concilia-X.Y.Z-setup.exe`. O atualizador do servidor recusa a release se a
-tag e a versão do instalador não baterem — senão reinstalaria a mesma versão de
-hora em hora.
-
-## Arquivos
-
-| Arquivo | Conteúdo |
-| --- | --- |
-| `ofx_parser.py` | parser do formato OFX; não depende da interface |
-| `app_desktop.py` | interface Tkinter |
-| `test_ofx_parser.py` | testes do parser (`python -m unittest`) |
-| `installer.iss` | script do instalador (Inno Setup) |
-| `build.ps1` / `build_installer.ps1` | geração do executável e do instalador |
-| `instalar_no_servidor.ps1` | instalação para todos os usuários do RD Session Host |
-| `atualizador.ps1` | atualização automática pelo GitHub (tarefa agendada no servidor) |
-| `concilia.ico` / `concilia.png` | ícone do programa |
-| `legacy/` | versão anterior, mantida para consulta |
-
-Se existir um `logo.png` na pasta, ele aparece no cabeçalho da janela no lugar
-do nome do programa.
-
-## Notas de manutenção
-
-**Cor na tabela marca exceção, não a regra.** A versão anterior pintava toda
-linha de verde ou vermelho; num extrato quase todo de débitos, isso faz a cor
-perder o significado e cansa a leitura. O texto da tabela é neutro, e a cor
-aparece só nos cartões de resumo, onde são quatro números e a distinção ajuda.
-
-**`ttk.Treeview` só aceita cor por linha, nunca por célula.** Por isso "pintar
-apenas a coluna Valor" não é possível — a alternativa seria trocar de widget, e
-não vale o custo. O sufixo `C`/`D` e o alinhamento à direita dão a leitura.
-
-**O tema fica todo em `_aplicar_tema()`.** O `clam` é a base porque é o tema que
-mais aceita customização; os temas nativos do Windows ignoram boa parte das
-cores. A lista suspensa do Combobox não é um widget ttk — só se alcança pelas
-`option_add` do Tcl, que estão no mesmo método.
-
-
-
-**O parser lê o arquivo em uma passagem só.** Um único `finditer` percorre o
-texto e monta uma árvore de tags; os campos são lidos dessa árvore. A versão
-anterior fazia uma expressão regular por campo de cada lançamento.
-
-**A busca por tags é em largura, não em profundidade.** `<LEDGERBAL>` e
-`<BANKACCTFROM>` são filhos diretos de `<STMTRS>`, mas aparecem no arquivo
-depois de `<BANKTRANLIST>`. Em profundidade, cada consulta desceria por todos os
-lançamentos antes de encontrá-los.
-
-**Nada pesado é importado na inicialização.** É o que mantém a abertura rápida,
-tanto no script quanto no executável. Ao adicionar uma biblioteca nova, importe
-dentro da função que a usa, não no topo do arquivo.
-
-**Codificação é adivinhada por pontuação.** Bancos brasileiros mandam cp1252,
-latin-1 e UTF-8 sem que o cabeçalho seja confiável. O parser testa os candidatos
-e escolhe o resultado com menos indícios de acentuação corrompida.
-
-O arquivo lido é apenas lido: o programa nunca grava por cima do OFX original.
+Para publicar uma versão, altere `VERSAO` em `app_desktop.py` e `Versao` em
+`installer.iss`, gere o instalador e anexe o `.exe` a uma release com a tag
+`vX.Y.Z`.
