@@ -58,6 +58,23 @@ def resource_path(relative_path: str) -> str:
     return os.path.join(base, relative_path)
 
 
+def atualizacao_automatica() -> bool:
+    """True quando o servidor instala as versoes novas sozinho.
+
+    A marca e gravada pelo atualizador.ps1 ao registrar a tarefa agendada, o que
+    so acontece na instalacao para todos os usuarios.
+    """
+    try:
+        import winreg
+
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Concilia", 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY
+        ) as chave:
+            return bool(winreg.QueryValueEx(chave, "AtualizacaoAutomatica")[0])
+    except Exception:
+        return False
+
+
 def caminho_config() -> str:
     base = os.environ.get("APPDATA") or os.path.expanduser("~")
     return os.path.join(base, APP_NOME, "config.json")
@@ -602,7 +619,11 @@ class ConciliaApp:
             return
 
         self.endereco_atualizacao = endereco
-        self.aviso_atualizacao.configure(text=f"Versão {tag.lstrip('v')} disponível  ›")
+        texto = f"Versão {tag.lstrip('v')} disponível"
+        if atualizacao_automatica():
+            # no servidor o usuario nao consegue instalar; so precisa saber que vem
+            texto += " · será instalada automaticamente"
+        self.aviso_atualizacao.configure(text=f"{texto}  ›")
         self.aviso_atualizacao.pack(side="right", padx=20)
 
     @staticmethod

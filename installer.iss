@@ -69,6 +69,8 @@ Name: "associar";   Description: "Abrir arquivos .ofx com o {#Nome}"; GroupDescr
 [Files]
 ; A pasta inteira gerada pelo PyInstaller (--onedir), incluindo _internal
 Source: "dist\{#Nome}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Atualizador automatico; so e acionado na instalacao para todos os usuarios (ver [Run])
+Source: "atualizador.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#Nome}";                  Filename: "{app}\{#Executavel}"
@@ -101,12 +103,26 @@ Root: HKA; Subkey: "Software\Classes\.qfx\OpenWithProgids"; \
     Flags: uninsdeletevalue; Tasks: associar
 
 [Run]
+; Instalacao para todos os usuarios: usuario comum nao pode gravar em Program
+; Files, entao quem instala as versoes novas e uma tarefa agendada como SYSTEM.
+Filename: "powershell.exe"; \
+    Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\atualizador.ps1"" -Registrar"; \
+    StatusMsg: "Configurando a atualizacao automatica..."; \
+    Flags: runhidden waituntilterminated; Check: IsAdminInstallMode
+
 Filename: "{app}\{#Executavel}"; Description: "Abrir o {#Nome} agora"; \
     Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+Filename: "powershell.exe"; \
+    Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\atualizador.ps1"" -Remover"; \
+    Flags: runhidden waituntilterminated; Check: IsAdminInstallMode; RunOnceId: "RemoverAtualizador"
 
 [UninstallDelete]
 ; Preferencias gravadas pelo programa (ultima pasta e tamanho da janela)
 Type: filesandordirs; Name: "{userappdata}\{#Nome}"
+; Instaladores baixados e registro do atualizador automatico
+Type: filesandordirs; Name: "{app}\atualizacao"
 
 [Code]
 // Impede instalar por cima com o programa aberto: os arquivos ficariam em uso

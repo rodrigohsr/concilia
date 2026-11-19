@@ -80,6 +80,29 @@ Concilia-1.2.0-setup.exe /VERYSILENT /NORESTART /TASKS=associar,desktopicon
 Acrescente `/ALLUSERS` (com privilégio de administrador) para instalar para
 todos os usuários da máquina.
 
+### Atualização automática
+
+Na instalação para todos os usuários, o instalador cria a tarefa agendada
+**Concilia - atualizacao automatica**, que roda como SYSTEM de hora em hora e na
+inicialização do servidor. Ela executa `atualizador.ps1` (instalado ao lado do
+programa), que:
+
+1. compara a versão instalada com a última release do GitHub;
+2. baixa o `Concilia-X.Y.Z-setup.exe` da release e confere o sha256 publicado
+   pelo GitHub e a versão gravada no próprio `.exe`;
+3. instala em silêncio, **só com o Concilia fechado em todas as sessões**. Entre
+   1h e 6h fecha as cópias esquecidas em sessões *desconectadas* — nunca nas
+   ativas. As edições de histórico já estão gravadas em disco; só a tela se perde.
+
+Enquanto isso, quem abre o programa vê "Versão X disponível · será instalada
+automaticamente". O registro fica em `C:\Program Files\Concilia\atualizacao\atualizador.log`.
+
+Para conferir sem instalar nada: `.\atualizador.ps1 -Simular`. Para desligar,
+desative a tarefa no Agendador — as próximas versões não a reativam.
+
+A instalação só para o usuário atual não cria a tarefa: lá o aviso continua
+levando à página da release.
+
 ## Desenvolvimento
 
 O parser e a interface usam **apenas a biblioteca padrão** (Python 3.10+).
@@ -112,6 +135,11 @@ Ao subir a versão, altere `VERSAO` em `app_desktop.py` e `#define Versao` em
 instalador reconhecer e substituir a instalação anterior em vez de criar uma
 segunda cópia.
 
+Para publicar, crie a release com a tag `vX.Y.Z` **igual** à `VERSAO` e anexe o
+`dist\Concilia-X.Y.Z-setup.exe`. O atualizador do servidor recusa a release se a
+tag e a versão do instalador não baterem — senão reinstalaria a mesma versão de
+hora em hora.
+
 ## Arquivos
 
 | Arquivo | Conteúdo |
@@ -122,6 +150,7 @@ segunda cópia.
 | `installer.iss` | script do instalador (Inno Setup) |
 | `build.ps1` / `build_installer.ps1` | geração do executável e do instalador |
 | `instalar_no_servidor.ps1` | instalação para todos os usuários do RD Session Host |
+| `atualizador.ps1` | atualização automática pelo GitHub (tarefa agendada no servidor) |
 | `concilia.ico` / `concilia.png` | ícone do programa |
 | `legacy/` | versão anterior, mantida para consulta |
 

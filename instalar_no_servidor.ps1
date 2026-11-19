@@ -93,6 +93,10 @@ if (Test-Path "HKLM:\SOFTWARE\Classes\Concilia.Extrato\shell\open\command") {
 $menu = Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs\Concilia"
 if (Test-Path $menu) { Write-Host "OK    menu iniciar de todos os usuarios" } else { Write-Host "AVISO atalho do menu iniciar ausente" }
 
+$tarefa = Get-ScheduledTask -TaskName "Concilia - atualizacao automatica" -EA SilentlyContinue
+if ($tarefa) { Write-Host "OK    atualizacao automatica: tarefa $($tarefa.State), de hora em hora como SYSTEM" }
+else { Write-Host "AVISO tarefa de atualizacao automatica ausente" }
+
 $publico = Join-Path $env:PUBLIC "Desktop\Concilia.lnk"
 if (-not $SemAtalhoNaAreaDeTrabalho) {
     if (Test-Path $publico) { Write-Host "OK    atalho na area de trabalho de todos os usuarios" }
