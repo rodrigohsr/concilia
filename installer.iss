@@ -4,7 +4,7 @@
 ; (o script roda o build.ps1 antes, para garantir que dist\Concilia esta atualizado)
 
 #define Nome        "Concilia"
-#define Versao      "1.2.2"
+#define Versao      "1.3.0"
 #define Descricao   "Conferencia de extratos bancarios em OFX"
 #define Executavel  "Concilia.exe"
 

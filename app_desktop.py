@@ -20,7 +20,7 @@ from tkinter import filedialog, messagebox, ttk
 from ofx_parser import ExtratoOFX, OFXParserBR
 
 APP_NOME = "Concilia"
-VERSAO = "1.2.2"
+VERSAO = "1.3.0"
 DESCRICAO = "Conferencia de extratos bancarios em OFX"
 AVISO_LEGAL = "Extrato gerado para conferencia. Nao substitui o documento oficial do banco."
 URL_ULTIMA_VERSAO = "https://api.github.com/repos/rodrigohsr/concilia/releases/latest"
@@ -36,7 +36,7 @@ COR_SUPERFICIE = "#ffffff"   # cartoes e tabela
 COR_BORDA = "#e2e8f0"
 COR_BORDA_FORTE = "#cbd5e1"
 COR_TEXTO = "#0f172a"
-COR_TEXTO_FRACO = "#64748b"
+COR_TEXTO_FRACO = "#475569"
 COR_DESTAQUE = "#0284c7"
 COR_DESTAQUE_FUNDO = "#e0f2fe"
 COR_DEBITO = "#b91c1c"
@@ -44,11 +44,24 @@ COR_CREDITO = "#15803d"
 COR_ZEBRA = "#f8fafc"
 
 FONTE = "Segoe UI"
-FONTE_NUM = "Consolas"      # numeros alinham melhor em fonte de largura fixa
+# Tamanhos de fonte, em pontos. Subiram 2 pt em relacao a 1.2.1: em 8-9 pt o
+# texto ficava dificil de ler, principalmente por area de trabalho remota.
+TAM_PEQUENO = 10    # rotulos dos cartoes, cabecalho da tabela
+TAM = 11            # texto geral, tabela, botoes, campos
+TAM_MEDIO = 13      # titulo do cabecalho
+TAM_GRANDE = 17     # valores dos cartoes de resumo
 
-# Quantidade de linhas inseridas por ciclo ao preencher a tabela. Manter a
-# insercao fatiada deixa a janela responsiva em extratos muito grandes.
-LOTE_LINHAS = 400
+# Colunas da tabela: chave, titulo, largura e alinhamento.
+COLUNAS = (
+    ("conferido", "✓", 44, "center"),
+    ("data", "Data", 112, "center"),
+    ("tipo", "Tipo", 112, "w"),
+    ("historico", "Histórico", 420, "w"),
+    ("valor", "Valor", 170, "e"),
+    ("saldo", "Saldo", 170, "e"),
+)
+COL_CONF, COL_DATA, COL_TIPO, COL_HIST, COL_VALOR, COL_SALDO = range(len(COLUNAS))
+LADO_CHECKBOX = 16  # px
 
 
 def resource_path(relative_path: str) -> str:
@@ -148,6 +161,7 @@ class Linha:
     fit_id: str | None = None
     check_num: str | None = None
     ref_num: str | None = None
+    conferido: bool = False
 
     @property
     def editado(self) -> bool:
@@ -165,13 +179,12 @@ class ConciliaApp:
         self.visiveis: list[Linha] = []
         self.caminho_atual: str | None = None
         self.ordenacao: tuple[str, bool] = ("data", False)
-        self.geracao = 0  # invalida preenchimentos em andamento
         self._busca_agendada: str | None = None
 
         self.modo_edicao = False
         self.edicoes: dict[str, str] = {}   # chave do lancamento -> historico corrigido
-        self.editor: tk.Entry | None = None
-        self.editor_iid: str | None = None
+        self.conferidos: set[str] = set()   # chaves dos lancamentos marcados como conferidos
+        self._x_clique = 0
 
         self._montar_janela()
         self._montar_cabecalho()
@@ -206,6 +219,10 @@ class ConciliaApp:
                 continue
 
         self.root.configure(bg=COR_FUNDO)
+        # Entry, Combobox e dialogos do Tk usam as fontes nomeadas: mesmo tamanho do resto
+        import tkinter.font as tkfont
+        for nome in ("TkDefaultFont", "TkTextFont", "TkMenuFont"):
+            tkfont.nametofont(nome).configure(family=FONTE, size=TAM)
         self._aplicar_tema()
         self.root.protocol("WM_DELETE_WINDOW", self._ao_fechar)
 
@@ -220,42 +237,6 @@ class ConciliaApp:
 
         e = self.style.configure
         m = self.style.map
-
-        # --- tabela ---------------------------------------------------------
-        e(
-            "Concilia.Treeview",
-            background=COR_SUPERFICIE,
-            fieldbackground=COR_SUPERFICIE,
-            foreground=COR_TEXTO,
-            rowheight=30,
-            borderwidth=0,
-            relief="flat",
-            font=(FONTE, 9),
-        )
-        m(
-            "Concilia.Treeview",
-            background=[("selected", COR_DESTAQUE_FUNDO)],
-            foreground=[("selected", COR_TEXTO)],
-        )
-        e(
-            "Concilia.Treeview.Heading",
-            background=COR_FUNDO,
-            foreground=COR_TEXTO_FRACO,
-            relief="flat",
-            borderwidth=0,
-            padding=(12, 10),
-            font=(FONTE, 8, "bold"),
-        )
-        m(
-            "Concilia.Treeview.Heading",
-            background=[("active", COR_BORDA)],
-            foreground=[("active", COR_TEXTO)],
-        )
-        # remove a moldura afundada que o clam desenha em volta da tabela
-        self.style.layout(
-            "Concilia.Treeview",
-            [("Concilia.Treeview.treearea", {"sticky": "nswe"})],
-        )
 
         # --- botoes ---------------------------------------------------------
         for nome, fundo, texto, fundo_hover in (
@@ -273,7 +254,7 @@ class ConciliaApp:
                 borderwidth=0 if nome == "Acao.TButton" else 1,
                 relief="flat",
                 padding=(14, 7),
-                font=(FONTE, 9),
+                font=(FONTE, TAM),
             )
             m(
                 nome,
@@ -320,21 +301,8 @@ class ConciliaApp:
         self.root.option_add("*TCombobox*Listbox.foreground", COR_TEXTO)
         self.root.option_add("*TCombobox*Listbox.selectBackground", COR_DESTAQUE_FUNDO)
         self.root.option_add("*TCombobox*Listbox.selectForeground", COR_TEXTO)
-        self.root.option_add("*TCombobox*Listbox.font", (FONTE, 9))
+        self.root.option_add("*TCombobox*Listbox.font", (FONTE, TAM))
 
-        # --- barra de rolagem -----------------------------------------------
-        e(
-            "Concilia.Vertical.TScrollbar",
-            background=COR_BORDA_FORTE,
-            troughcolor=COR_SUPERFICIE,
-            bordercolor=COR_SUPERFICIE,
-            lightcolor=COR_SUPERFICIE,
-            darkcolor=COR_SUPERFICIE,
-            arrowcolor=COR_TEXTO_FRACO,
-            borderwidth=0,
-            width=12,
-        )
-        m("Concilia.Vertical.TScrollbar", background=[("active", COR_TEXTO_FRACO)])
 
     def _montar_cabecalho(self) -> None:
         self.header = tk.Frame(self.root, bg=COR_SUPERFICIE)
@@ -347,7 +315,7 @@ class ConciliaApp:
         self.titulo = tk.Label(
             identidade,
             text=APP_NOME,
-            font=(FONTE, 15, "bold"),
+            font=(FONTE, TAM_GRANDE + 1, "bold"),
             fg=COR_DESTAQUE,
             bg=COR_SUPERFICIE,
         )
@@ -362,7 +330,7 @@ class ConciliaApp:
         self.lbl_banco = tk.Label(
             bloco_conta,
             text="Nenhum extrato aberto",
-            font=(FONTE, 11, "bold"),
+            font=(FONTE, TAM_MEDIO, "bold"),
             fg=COR_TEXTO,
             bg=COR_SUPERFICIE,
             anchor="e",
@@ -372,7 +340,7 @@ class ConciliaApp:
         self.lbl_conta = tk.Label(
             bloco_conta,
             text="Abra um arquivo OFX ou arraste-o para esta janela",
-            font=(FONTE, 9),
+            font=(FONTE, TAM),
             fg=COR_TEXTO_FRACO,
             bg=COR_SUPERFICIE,
             anchor="e",
@@ -407,7 +375,7 @@ class ConciliaApp:
             tk.Label(
                 cartao,
                 text=rotulo.upper(),
-                font=(FONTE, 8),
+                font=(FONTE, TAM_PEQUENO),
                 fg=COR_TEXTO_FRACO,
                 bg=fundo,
                 anchor="w",
@@ -416,7 +384,7 @@ class ConciliaApp:
             valor = tk.Label(
                 cartao,
                 text="-",
-                font=(FONTE, 15 if final else 14, "bold"),
+                font=(FONTE, TAM_GRANDE + 1 if final else TAM_GRANDE, "bold"),
                 fg=cor,
                 bg=fundo,
                 anchor="w",
@@ -494,7 +462,7 @@ class ConciliaApp:
         confundida com um termo de pesquisa.
         """
         self.marca_busca = tk.Label(
-            self.entry_busca, text="Localizar lançamento", font=(FONTE, 9), fg="#94a3b8", bg=COR_SUPERFICIE
+            self.entry_busca, text="Localizar lançamento", font=(FONTE, TAM), fg="#64748b", bg=COR_SUPERFICIE
         )
         self.marca_busca.bind("<Button-1>", lambda _e: self.entry_busca.focus_set())
 
@@ -508,49 +476,72 @@ class ConciliaApp:
         alternar()
 
     def _montar_tabela(self) -> None:
+        # tksheet em vez de ttk.Treeview: o Treeview so colore a linha inteira,
+        # e aqui a cor vai so na celula do valor. O checkbox tambem vem pronto.
+        from tksheet import Sheet
+
         moldura = tk.Frame(self.root, bg=COR_SUPERFICIE, highlightthickness=1, highlightbackground=COR_BORDA)
         moldura.pack(fill="both", expand=True, padx=20, pady=(0, 12))
 
-        # "folga" e uma coluna vazia no fim que absorve a sobra de largura. Antes
-        # o Historico esticava ate preencher a janela e, centralizado, deixava o
-        # texto solto no meio de um vao - pior ainda com a janela maximizada.
-        colunas = ("data", "tipo", "historico", "valor", "saldo", "folga")
-        self.tree = ttk.Treeview(
-            moldura, columns=colunas, show="headings", selectmode="extended", style="Concilia.Treeview"
+        self.sheet = Sheet(
+            moldura,
+            headers=[titulo for _chave, titulo, _largura, _alinhamento in COLUNAS],
+            show_row_index=False,
+            show_top_left=False,
+            show_x_scrollbar=False,
+            show_vertical_grid=False,
+            show_horizontal_grid=True,
+            show_selected_cells_border=False,
+            empty_horizontal=0,
+            empty_vertical=0,
+            outline_thickness=0,
+            font=(FONTE, TAM, "normal"),
+            header_font=(FONTE, TAM_PEQUENO, "bold"),
+            default_row_height=34,
+            default_header_height=38,
+            frame_bg=COR_SUPERFICIE,
+            table_bg=COR_SUPERFICIE,
+            table_grid_fg=COR_BORDA,
+            table_fg=COR_TEXTO,
+            table_editor_bg=COR_SUPERFICIE,
+            table_editor_fg=COR_TEXTO,
+            table_selected_cells_bg=COR_DESTAQUE_FUNDO,
+            table_selected_cells_fg=COR_TEXTO,
+            table_selected_rows_bg=COR_DESTAQUE_FUNDO,
+            table_selected_rows_fg=COR_TEXTO,
+            table_selected_box_cells_fg=COR_DESTAQUE_FUNDO,
+            table_selected_box_rows_fg=COR_DESTAQUE_FUNDO,
+            header_bg=COR_FUNDO,
+            header_fg=COR_TEXTO_FRACO,
+            header_grid_fg=COR_FUNDO,
+            header_border_fg=COR_FUNDO,
+            header_selected_cells_bg=COR_FUNDO,
+            header_selected_cells_fg=COR_TEXTO_FRACO,
+            vertical_scroll_background=COR_BORDA_FORTE,
+            vertical_scroll_troughcolor=COR_SUPERFICIE,
+            vertical_scroll_bordercolor=COR_SUPERFICIE,
+            vertical_scroll_lightcolor=COR_SUPERFICIE,
+            vertical_scroll_darkcolor=COR_SUPERFICIE,
+            vertical_scroll_active_bg=COR_TEXTO_FRACO,
+            vertical_scroll_not_active_bg=COR_BORDA_FORTE,
+            vertical_scroll_pressed_bg=COR_TEXTO_FRACO,
         )
-
-        titulos = {
-            "data": ("Data", 96, "center"),
-            "tipo": ("Tipo", 96, "w"),
-            "historico": ("Histórico", 420, "w"),
-            "valor": ("Valor", 140, "e"),
-            "saldo": ("Saldo", 140, "e"),
-        }
-        for coluna, (texto, largura, alinhamento) in titulos.items():
-            self.tree.heading(coluna, text=texto, anchor=alinhamento, command=lambda c=coluna: self._ordenar_por(c))
-            self.tree.column(coluna, width=largura, anchor=alinhamento, stretch=False, minwidth=70)
-        self.tree.heading("folga", text="")
-        self.tree.column("folga", width=0, minwidth=0, stretch=True)
+        self.sheet.pack(fill="both", expand=True, padx=1, pady=1)
+        self.sheet.set_column_widths([largura for _c, _t, largura, _a in COLUNAS])
+        for i, (_c, _t, _l, alinhamento) in enumerate(COLUNAS):
+            self.sheet.align(self.sheet.span(chr(ord("A") + i), header=True), align=alinhamento, redraw=False)
+        self.sheet.enable_bindings(
+            "single_select", "drag_select", "shift_select", "ctrl_select", "arrowkeys", "column_width_resize"
+        )
+        self.sheet.edit_validation(self._validar_edicao)
+        self.sheet.bind("<ButtonPress-1>", self._ao_pressionar_tabela)
+        self.sheet.bind("<ButtonRelease-1>", self._ao_soltar_tabela)
+        self.sheet.bind("<Double-Button-1>", self._duplo_clique)
+        self.sheet.bind("<KeyRelease>", lambda _e: self._selecionar_linhas_inteiras(), add="+")
+        self.sheet.bind("<<SheetRedrawn>>", self._desenhar_checkboxes)
 
         self._largura_historico = 420  # medida do maior historico; refeita a cada extrato
-        self.tree.bind("<Configure>", self._encaixar_historico, add="+")
-
-        # Cor so no debito, e so no tom do texto: e a excecao que se procura num
-        # extrato. Credito fica neutro - antes as duas cores brigavam em todas
-        # as linhas e nenhuma delas informava nada.
-        self.tree.tag_configure("zebra", background=COR_ZEBRA)
-        # historico corrigido a mao e excecao, entao aqui a cor informa
-        self.tree.tag_configure("editado", foreground=COR_DESTAQUE)
-
-        vsb = ttk.Scrollbar(moldura, orient="vertical", command=self.tree.yview, style="Concilia.Vertical.TScrollbar")
-        self.tree.configure(yscrollcommand=vsb.set)
-
-        self.tree.grid(row=0, column=0, sticky="nsew", padx=(1, 0), pady=1)
-        vsb.grid(row=0, column=1, sticky="ns", pady=1, padx=(0, 1))
-        moldura.rowconfigure(0, weight=1)
-        moldura.columnconfigure(0, weight=1)
-
-        self.tree.bind("<Double-1>", self._duplo_clique)
+        moldura.bind("<Configure>", self._encaixar_historico, add="+")
 
     def _montar_rodape(self) -> None:
         rodape = tk.Frame(self.root, bg=COR_FUNDO)
@@ -561,7 +552,7 @@ class ConciliaApp:
             bg=COR_FUNDO,
             fg=COR_TEXTO_FRACO,
             anchor="w",
-            font=(FONTE, 9),
+            font=(FONTE, TAM),
             padx=20,
             pady=8,
         )
@@ -573,7 +564,7 @@ class ConciliaApp:
             text="",
             bg=COR_FUNDO,
             fg=COR_DESTAQUE,
-            font=(FONTE, 9, "bold"),
+            font=(FONTE, TAM, "bold"),
             cursor="hand2",
             pady=8,
         )
@@ -585,9 +576,10 @@ class ConciliaApp:
         self.root.bind("<Control-f>", lambda _e: self.entry_busca.focus_set())
         self.root.bind("<Escape>", self._limpar_busca)
         self.root.bind("<Control-p>", lambda _e: self.exportar_pdf())
-        self.tree.bind("<Control-c>", self._copiar_historico)
-        self.tree.bind("<Control-C>", self._copiar_linhas)  # Ctrl+Shift+C
-        self.tree.bind("<Control-a>", self._selecionar_tudo)
+        self.sheet.bind("<Control-c>", self._copiar_historico)
+        self.sheet.bind("<Control-C>", self._copiar_linhas)  # Ctrl+Shift+C
+        self.sheet.bind("<Control-a>", self._selecionar_tudo)
+        self.sheet.bind("<space>", self._alternar_conferido)
         self.root.bind("<F2>", self._editar_selecionado)
         self.root.bind("<Control-e>", lambda _e: self._alternar_modo_edicao())
 
@@ -789,7 +781,7 @@ class ConciliaApp:
         filtrado, para a coluna nao pular de tamanho a cada busca)."""
         import tkinter.font as tkfont
 
-        fonte = tkfont.Font(family=FONTE, size=9)
+        fonte = tkfont.Font(family=FONTE, size=TAM)
         # fonte proporcional: os mais longos em caracteres bastam como amostra
         maiores = sorted((l.historico for l in self.linhas), key=len, reverse=True)[:40]
         self._largura_historico = max([fonte.measure(t) for t in maiores] + [200]) + 24
@@ -797,11 +789,12 @@ class ConciliaApp:
 
     def _encaixar_historico(self, _evento=None) -> None:
         # nunca mais largo que o espaco livre: com a janela estreita, Valor e
-        # Saldo sairiam da tela - ai o historico corta, como fazia antes
-        fixas = sum(self.tree.column(c, "width") for c in ("data", "tipo", "valor", "saldo"))
-        livre = self.tree.winfo_width() - fixas - 4
+        # Saldo sairiam da tela - ai o historico corta
+        larguras = self.sheet.get_column_widths()
+        fixas = sum(largura for i, largura in enumerate(larguras) if i != COL_HIST)
+        livre = self.sheet.winfo_width() - fixas - 20  # barra de rolagem
         if livre > 0:
-            self.tree.column("historico", width=max(200, min(self._largura_historico, livre)))
+            self.sheet.column_width(COL_HIST, max(200, min(self._largura_historico, livre)))
 
     def _chave_lancamento(self, transacao) -> str:
         """Identificador estavel de um lancamento, para reencontrar sua edicao.
@@ -837,6 +830,7 @@ class ConciliaApp:
             fit_id=transacao.fit_id,
             check_num=transacao.check_num,
             ref_num=transacao.ref_num,
+            conferido=chave in self.conferidos,
         )
 
     @staticmethod
@@ -942,6 +936,7 @@ class ConciliaApp:
         self._atualizar_status()
 
     _CHAVES = {
+        "conferido": lambda l: l.conferido,
         "data": lambda l: l.iso,
         "tipo": lambda l: l.tipo.lower(),
         "historico": lambda l: l.historico.lower(),
@@ -958,36 +953,24 @@ class ConciliaApp:
     def _ordenar_visiveis(self) -> None:
         coluna, invertido = self.ordenacao
         self.visiveis.sort(key=self._CHAVES[coluna], reverse=invertido)
-        for nome in self._CHAVES:
-            texto = {"data": "Data", "tipo": "Tipo", "historico": "Histórico", "valor": "Valor", "saldo": "Saldo"}[nome]
-            if nome == coluna:
-                texto += "  ▼" if invertido else "  ▲"
-            self.tree.heading(nome, text=texto)
+        titulos = []
+        for chave, titulo, _l, _a in COLUNAS:
+            if chave == coluna:
+                titulo += " ▼" if invertido else " ▲"
+            titulos.append(titulo)
+        self.sheet.headers(titulos, redraw=False)
 
     def _preencher_tabela(self) -> None:
-        self.geracao += 1
-        self.tree.delete(*self.tree.get_children())
-        self._inserir_lote(0, self.geracao)
-
-    def _inserir_lote(self, inicio: int, geracao: int) -> None:
-        if geracao != self.geracao:
-            return  # outro preenchimento comecou; este ficou obsoleto
-        inserir = self.tree.insert
-        fim = min(inicio + LOTE_LINHAS, len(self.visiveis))
-        for i in range(inicio, fim):
-            linha = self.visiveis[i]
-            tags = ["editado"] if linha.editado else []
-            if i % 2:
-                tags.append("zebra")
-            inserir(
-                "",
-                "end",
-                iid=str(i),
-                values=(linha.data, linha.tipo, linha.historico, linha.valor_txt, linha.saldo_txt),
-                tags=tags,
-            )
-        if fim < len(self.visiveis):
-            self.root.after(1, self._inserir_lote, fim, geracao)
+        self._fechar_editor()
+        dados = [
+            ["", l.data, l.tipo, l.historico, l.valor_txt, l.saldo_txt]
+            for l in self.visiveis
+        ]
+        self.sheet.deselect(redraw=False)
+        self.sheet.set_sheet_data(dados, reset_col_positions=False, reset_highlights=True, redraw=False)
+        for i, linha in enumerate(self.visiveis):
+            self._destacar(i, linha)
+        self.sheet.refresh()
 
     def _atualizar_status(self) -> None:
         # so faz sentido exportar o que esta visivel
@@ -1015,17 +998,107 @@ class ConciliaApp:
         # esta em tela, e nao do extrato inteiro; o aviso evita a leitura errada.
         if len(self.visiveis) != len(self.linhas):
             contagem += "   ·   totais referentes ao filtro"
+        conferidos = sum(1 for l in self.linhas if l.conferido)
+        if conferidos:
+            contagem += f"   ·   {conferidos} de {len(self.linhas)} conferidos"
         self.status.configure(text=contagem)
 
     # ------------------------------------------------------------------
     # Interacoes com a tabela
     # ------------------------------------------------------------------
     def _selecionar_tudo(self, _evento=None) -> str:
-        self.tree.selection_set(self.tree.get_children())
+        if self.visiveis:
+            self.sheet.deselect(redraw=False)
+            self.sheet.create_selection_box(0, 0, len(self.visiveis), len(COLUNAS))
+            self.sheet.refresh()
         return "break"
 
+    def _indices_selecionados(self) -> list[int]:
+        total = len(self.visiveis)
+        return sorted(r for r in self.sheet.get_selected_rows(get_cells_as_rows=True) if r < total)
+
+    def _ao_pressionar_tabela(self, evento) -> None:
+        self._x_clique = evento.x
+        # o checkbox responde no press: num duplo clique o segundo press vai so
+        # para o <Double-Button-1>, entao a marca troca uma vez, nao duas
+        if evento.widget is self.sheet.MT and not evento.state & 0x0005:  # sem Shift/Ctrl
+            linha = self.sheet.identify_row(evento, allow_end=False)
+            coluna = self.sheet.identify_column(evento, allow_end=False)
+            if coluna == COL_CONF and linha is not None and linha < len(self.visiveis):
+                self._marcar_conferido([linha], not self.visiveis[linha].conferido)
+
+    def _ao_soltar_tabela(self, evento) -> None:
+        if evento.widget is self.sheet.CH:
+            # clique no cabecalho ordena; arrastar a divisoria so muda a largura
+            if abs(evento.x - self._x_clique) < 4:
+                coluna = self.sheet.identify_column(evento, allow_end=False)
+                if coluna is not None:
+                    self._ordenar_por(COLUNAS[coluna][0])
+        elif evento.widget is self.sheet.MT:
+            self._selecionar_linhas_inteiras()
+
+    def _selecionar_linhas_inteiras(self) -> None:
+        """O tksheet seleciona celulas; aqui a selecao cobre sempre a linha toda."""
+        total = len(COLUNAS)
+        caixas = [caixa for caixa, _tipo in self.sheet.get_all_selection_boxes_with_types()]
+        if all(c1 == 0 and c2 == total for _r1, c1, _r2, c2 in caixas):
+            return
+        atual = self.sheet.get_currently_selected()
+        self.sheet.deselect(redraw=False)
+        for r1, _c1, r2, _c2 in caixas:
+            self.sheet.create_selection_box(r1, 0, r2, total)
+        if atual:
+            # mantem a ancora, para o Shift+clique seguinte estender dali
+            self.sheet.set_currently_selected(atual.row, atual.column, run_binding=False)
+        self.sheet.refresh()
+
+    def _desenhar_checkboxes(self, _evento=None) -> None:
+        """Checkbox da coluna Conferido, desenhado por cima da tabela.
+
+        O checkbox do tksheet fica preso a esquerda e preenche de preto, e um
+        caractere de caixinha sai pequeno demais. Este e redesenhado a cada
+        redesenho da tabela, so nas linhas visiveis.
+        """
+        mt = self.sheet.MT
+        mt.delete("conferido")
+        if not self.visiveis:
+            return
+        inicio, fim = self.sheet.visible_rows
+        lado = LADO_CHECKBOX
+        x = (mt.col_positions[COL_CONF] + mt.col_positions[COL_CONF + 1] - lado) / 2
+        for r in range(inicio, min(fim, len(self.visiveis))):
+            y = (mt.row_positions[r] + mt.row_positions[r + 1] - lado) / 2
+            if self.visiveis[r].conferido:
+                mt.create_rectangle(x, y, x + lado, y + lado, fill=COR_DESTAQUE, outline=COR_DESTAQUE, tags="conferido")
+                mt.create_line(
+                    x + 4, y + 8.5, x + 7, y + 11.5, x + 12.5, y + 5,
+                    fill="#ffffff", width=2, capstyle="round", joinstyle="round", tags="conferido",
+                )
+            else:
+                mt.create_rectangle(x, y, x + lado, y + lado, fill=COR_SUPERFICIE, outline="#94a3b8", tags="conferido")
+        mt.tag_raise("conferido")
+
+    def _alternar_conferido(self, _evento=None) -> str:
+        """Espaco marca as linhas selecionadas; se ja estavam todas marcadas, desmarca."""
+        indices = self._indices_selecionados()
+        if indices:
+            self._marcar_conferido(indices, not all(self.visiveis[i].conferido for i in indices))
+        return "break"
+
+    def _marcar_conferido(self, indices: list[int], marcado: bool) -> None:
+        for i in indices:
+            linha = self.visiveis[i]
+            linha.conferido = marcado
+            if marcado:
+                self.conferidos.add(linha.chave)
+            else:
+                self.conferidos.discard(linha.chave)
+        self.sheet.refresh()  # o redesenho chama _desenhar_checkboxes
+        self._salvar_edicoes()
+        self._atualizar_status()
+
     def _linhas_selecionadas(self) -> list[Linha]:
-        return [self.visiveis[int(iid)] for iid in self.tree.selection() if iid.isdigit()]
+        return [self.visiveis[i] for i in self._indices_selecionados()]
 
     def _copiar_historico(self, _evento=None) -> str:
         """Ctrl+C: copia so o historico (o campo que costuma ir para o lancamento)."""
@@ -1075,12 +1148,16 @@ class ConciliaApp:
 
     def _carregar_edicoes(self, caminho_ofx: str) -> None:
         self.edicoes = {}
+        self.conferidos = set()
         try:
             with open(self._caminho_edicoes(caminho_ofx), encoding="utf-8") as arquivo:
                 dados = json.load(arquivo)
             historicos = dados.get("historicos")
             if isinstance(historicos, dict):
                 self.edicoes = {c: t for c, t in historicos.items() if isinstance(t, str)}
+            conferidos = dados.get("conferidos")
+            if isinstance(conferidos, list):
+                self.conferidos = {c for c in conferidos if isinstance(c, str)}
         except FileNotFoundError:
             pass
         except Exception:
@@ -1091,14 +1168,19 @@ class ConciliaApp:
             return
         destino = self._caminho_edicoes(self.caminho_atual)
         try:
-            if not self.edicoes:
+            if not self.edicoes and not self.conferidos:
                 if os.path.exists(destino):
                     os.remove(destino)
                 return
             os.makedirs(os.path.dirname(destino), exist_ok=True)
             with open(destino, "w", encoding="utf-8") as arquivo:
                 json.dump(
-                    {"versao": 1, "extrato": self.caminho_atual, "historicos": self.edicoes},
+                    {
+                        "versao": 2,
+                        "extrato": self.caminho_atual,
+                        "historicos": self.edicoes,
+                        "conferidos": sorted(self.conferidos),
+                    },
                     arquivo,
                     ensure_ascii=False,
                     indent=2,
@@ -1121,93 +1203,59 @@ class ConciliaApp:
             self._fechar_editor()
             self._atualizar_status()
 
-    def _duplo_clique(self, evento) -> str | None:
+    def _duplo_clique(self, evento) -> None:
         """Em modo de edicao abre o editor; fora dele, mostra os detalhes."""
-        if not self.modo_edicao:
+        if evento.widget is not self.sheet.MT:
+            return
+        indice = self.sheet.identify_row(evento, allow_end=False)
+        coluna = self.sheet.identify_column(evento, allow_end=False)
+        if indice is None or indice >= len(self.visiveis) or coluna == COL_CONF:
+            return  # no checkbox o primeiro clique ja marcou
+        if self.modo_edicao:
+            self._abrir_editor(indice)
+        else:
             self._mostrar_detalhes()
-            return None
-        iid = self.tree.identify_row(evento.y)
-        if iid:
-            self._abrir_editor(iid)
-        return "break"
 
     def _editar_selecionado(self, _evento=None) -> str:
         if self.modo_edicao:
-            selecao = self.tree.selection()
-            if selecao:
-                self._abrir_editor(selecao[0])
+            indices = self._indices_selecionados()
+            if indices:
+                self._abrir_editor(indices[0])
         return "break"
 
-    def _abrir_editor(self, iid: str) -> None:
-        if not iid.isdigit() or int(iid) >= len(self.visiveis):
+    def _abrir_editor(self, indice: int) -> None:
+        if not 0 <= indice < len(self.visiveis):
             return
-        self._fechar_editor()
-
-        self.tree.see(iid)
-        caixa = self.tree.bbox(iid, "historico")
-        if not caixa:  # linha fora da area visivel
-            return
-        x, y, largura, altura = caixa
-
-        linha = self.visiveis[int(iid)]
-        self.editor_iid = iid
-        self.editor = tk.Entry(
-            self.tree,
-            font=(FONTE, 9),
-            justify="center",
-            relief="solid",
-            borderwidth=1,
-            highlightthickness=1,
-            highlightcolor=COR_DESTAQUE,
-            highlightbackground=COR_DESTAQUE,
-        )
-        self.editor.insert(0, linha.historico)
-        self.editor.select_range(0, "end")
-        self.editor.place(x=x, y=y, width=largura, height=altura)
-        self.editor.focus_set()
-
-        self.editor.bind("<Return>", lambda _e: self._confirmar_edicao())
-        self.editor.bind("<KP_Enter>", lambda _e: self._confirmar_edicao())
-        self.editor.bind("<Escape>", lambda _e: self._fechar_editor())
-        self.editor.bind("<FocusOut>", lambda _e: self._confirmar_edicao())
+        self.sheet.see(indice, COL_HIST)
+        self.sheet.select_cell(indice, COL_HIST, run_binding_func=False)
+        self.sheet.open_cell()
 
     def _fechar_editor(self) -> None:
-        if self.editor is not None:
-            editor, self.editor = self.editor, None
-            self.editor_iid = None
-            editor.destroy()
+        """Fecha o editor sem gravar (troca de extrato, saida do modo de edicao)."""
+        self.sheet.close_text_editor(set_data=False)
 
-    def _confirmar_edicao(self) -> None:
-        if self.editor is None or self.editor_iid is None:
-            return
-        iid, texto = self.editor_iid, self.editor.get().strip()
-        self._fechar_editor()
-
-        if not iid.isdigit() or int(iid) >= len(self.visiveis):
-            return
-        linha = self.visiveis[int(iid)]
-
+    def _validar_edicao(self, evento):
+        """Chamado pelo tksheet ao confirmar a edicao; o retorno vai para a celula."""
+        if evento.column != COL_HIST or not 0 <= evento.row < len(self.visiveis):
+            return None
+        linha = self.visiveis[evento.row]
         # campo vazio devolve o texto original do banco
-        novo = texto or linha.original
-        if novo == linha.historico:
-            return
-
-        linha.historico = novo
-        linha.busca = f"{novo}\n{linha.tipo}".lower()
-        if novo == linha.original:
-            self.edicoes.pop(linha.chave, None)
-        else:
-            self.edicoes[linha.chave] = novo
-
-        self.tree.item(iid, values=(linha.data, linha.tipo, novo, linha.valor_txt, linha.saldo_txt))
-        self._marcar_linha(iid, int(iid), linha)
-        self._salvar_edicoes()
-        self._atualizar_botao_restaurar()
-
-        editados = sum(1 for l in self.linhas if l.editado)
-        self.status.configure(
-            text=f"Histórico atualizado.   ·   {editados} lançamento(s) editado(s) neste extrato."
-        )
+        novo = (evento.value or "").strip() or linha.original
+        if novo != linha.historico:
+            linha.historico = novo
+            linha.busca = f"{novo}\n{linha.tipo}".lower()
+            if novo == linha.original:
+                self.edicoes.pop(linha.chave, None)
+            else:
+                self.edicoes[linha.chave] = novo
+            self._destacar(evento.row, linha)
+            self._salvar_edicoes()
+            self._atualizar_botao_restaurar()
+            editados = sum(1 for l in self.linhas if l.editado)
+            self.status.configure(
+                text=f"Histórico atualizado.   ·   {editados} lançamento(s) editado(s) neste extrato."
+            )
+        return novo
 
     def _atualizar_botao_restaurar(self) -> None:
         """Botao de desfazer so existe enquanto ha o que desfazer."""
@@ -1216,12 +1264,15 @@ class ConciliaApp:
         else:
             self.btn_restaurar.pack_forget()
 
-    def _marcar_linha(self, iid: str, indice: int, linha: Linha) -> None:
-        """Aplica as tags visuais de uma linha (zebra e marca de editado)."""
-        tags = ["editado"] if linha.editado else []
-        if indice % 2:
-            tags.append("zebra")
-        self.tree.item(iid, tags=tags)
+    def _destacar(self, indice: int, linha: Linha) -> None:
+        """Valor do debito em vermelho e historico editado em azul. Sem cor de
+        fundo, para a selecao continuar uniforme na linha toda."""
+        if (linha.valor or 0.0) < 0:
+            self.sheet.highlight_cells(row=indice, column=COL_VALOR, fg=COR_DEBITO, bg=None, redraw=False)
+        if linha.editado:
+            self.sheet.highlight_cells(row=indice, column=COL_HIST, fg=COR_DESTAQUE, bg=None, redraw=False)
+        else:
+            self.sheet.dehighlight_cells(row=indice, column=COL_HIST, redraw=False)
 
     def _restaurar_historicos(self) -> None:
         if not self.edicoes:

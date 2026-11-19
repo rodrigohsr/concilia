@@ -21,14 +21,16 @@ Abra o `.ofx` pelo botão, arrastando para a janela ou com duplo clique no
 arquivo. A busca aceita vários termos e o filtro separa créditos de débitos.
 Clique no cabeçalho de uma coluna para ordenar.
 
-O botão Editar permite corrigir o histórico de um lançamento. A correção fica
-salva no computador; o arquivo OFX não é alterado.
+Clique na caixa à esquerda, ou aperte Espaço, para marcar um lançamento como
+conferido. O botão Editar permite corrigir o histórico. As marcas e as
+correções ficam salvas no computador; o arquivo OFX não é alterado.
 
 | Atalho | Ação |
 | --- | --- |
 | `Ctrl+O` | abrir arquivo |
 | `F5` | recarregar |
 | `Ctrl+F` | buscar |
+| `Espaço` | marcar as linhas selecionadas como conferidas |
 | `Ctrl+C` | copiar o histórico das linhas selecionadas |
 | `Ctrl+Shift+C` | copiar as linhas inteiras |
 | `Ctrl+P` | exportar em PDF |
