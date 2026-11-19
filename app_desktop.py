@@ -1,6 +1,6 @@
 """Concilia - conferencia de extratos bancarios em OFX.
 
-Interface desktop (Tkinter) usada no fluxo da Esquema Assessoria Contabil.
+Interface desktop (Tkinter).
 
 Notas de desempenho: nada pesado e importado na inicializacao. O parser usa
 apenas a biblioteca padrao, e reportlab/openpyxl/PIL sao carregados sob demanda,
@@ -20,9 +20,8 @@ from tkinter import filedialog, messagebox, ttk
 from ofx_parser import ExtratoOFX, OFXParserBR
 
 APP_NOME = "Concilia"
-VERSAO = "1.2.1"
+VERSAO = "1.2.2"
 DESCRICAO = "Conferencia de extratos bancarios em OFX"
-EMPRESA = "Esquema Assessoria Contabil"
 AVISO_LEGAL = "Extrato gerado para conferencia. Nao substitui o documento oficial do banco."
 URL_ULTIMA_VERSAO = "https://api.github.com/repos/rodrigohsr/concilia/releases/latest"
 
@@ -191,7 +190,7 @@ class ConciliaApp:
     # ------------------------------------------------------------------
     def _montar_janela(self) -> None:
         # a versao no titulo torna imediato saber qual build esta rodando
-        self.root.title(f"{APP_NOME} {VERSAO} - {EMPRESA}")
+        self.root.title(f"{APP_NOME} {VERSAO}")
         self._geometria_normal = self.config.get("geometria", "1200x680")
         self.root.geometry(self._geometria_normal)
         self.root.minsize(900, 480)
@@ -1301,7 +1300,7 @@ class ConciliaApp:
             topMargin=12 * mm,
             bottomMargin=14 * mm,
             title=f"Extrato - {self.extrato.conta.acct_id if self.extrato else ''}",
-            author=EMPRESA,
+            author=APP_NOME,
         )
 
         cabecalho = escapar_xml(self._resumo_para_pdf()).replace("\n", "<br/>")
@@ -1369,7 +1368,7 @@ class ConciliaApp:
             canvas.saveState()
             canvas.setFont("Helvetica", 7)
             canvas.setFillColor(colors.HexColor("#666666"))
-            canvas.drawString(10 * mm, 8 * mm, f"{EMPRESA} - {os.path.basename(self.caminho_atual or '')}")
+            canvas.drawString(10 * mm, 8 * mm, f"{APP_NOME} - {os.path.basename(self.caminho_atual or '')}")
             canvas.drawRightString(A4[0] - 10 * mm, 8 * mm, f"Pagina {documento.page}")
             canvas.restoreState()
 

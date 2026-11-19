@@ -39,7 +39,7 @@ Também é possível arrastar o arquivo OFX para dentro da janela.
 
 ## Instalação
 
-O instalador está anexado à release mais recente: `Concilia-1.2.1-setup.exe`.
+O instalador está anexado à release mais recente: `Concilia-1.2.2-setup.exe`.
 
 Cria atalho no menu iniciar e na área de trabalho, e associa os arquivos `.ofx`
 e `.qfx` ao programa — dá para dar duplo clique no extrato que ele abre direto.
@@ -73,7 +73,7 @@ atual, **sem pedir senha de administrador** — útil onde o usuário não é ad
 Silenciosamente:
 
 ```
-Concilia-1.2.1-setup.exe /VERYSILENT /NORESTART /TASKS=associar,desktopicon
+Concilia-1.2.2-setup.exe /VERYSILENT /NORESTART /TASKS=associar,desktopicon
 ```
 
 Acrescente `/ALLUSERS` (com privilégio de administrador) para instalar para
@@ -123,7 +123,7 @@ pacote falta e a exportação em CSV segue disponível sem instalar nada.
 
 ```powershell
 .\build.ps1                 # gera dist\Concilia\Concilia.exe
-.\build_installer.ps1       # gera dist\Concilia-1.2.1-setup.exe (roda o build antes)
+.\build_installer.ps1       # gera dist\Concilia-1.2.2-setup.exe (roda o build antes)
 ```
 
 O `build_installer.ps1` precisa do [Inno Setup 6](https://jrsoftware.org/isdl.php).

@@ -18,7 +18,7 @@ def resource_path(relative_path):
 class LeitorOFXApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Leitor de Extratos OFX - Esquema Assessoria Contábil")
+        self.root.title("Leitor de Extratos OFX")
         self.root.geometry("1200x630")
         
         # Ícone do cifrão na janela do programa

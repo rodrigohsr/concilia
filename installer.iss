@@ -4,8 +4,7 @@
 ; (o script roda o build.ps1 antes, para garantir que dist\Concilia esta atualizado)
 
 #define Nome        "Concilia"
-#define Versao      "1.2.1"
-#define Empresa     "Esquema Assessoria Contabil"
+#define Versao      "1.2.2"
 #define Descricao   "Conferencia de extratos bancarios em OFX"
 #define Executavel  "Concilia.exe"
 
@@ -17,7 +16,7 @@ AppId={{8F3C21D7-4B6E-4A55-9E2C-7D1A0C5B93E4}
 AppName={#Nome}
 AppVersion={#Versao}
 AppVerName={#Nome} {#Versao}
-AppPublisher={#Empresa}
+AppPublisher={#Nome}
 VersionInfoVersion={#Versao}
 VersionInfoDescription={#Descricao}
 
