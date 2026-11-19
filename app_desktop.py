@@ -490,21 +490,29 @@ class ConciliaApp:
         moldura = tk.Frame(self.root, bg=COR_SUPERFICIE, highlightthickness=1, highlightbackground=COR_BORDA)
         moldura.pack(fill="both", expand=True, padx=20, pady=(0, 12))
 
-        colunas = ("data", "tipo", "historico", "valor", "saldo")
+        # "folga" e uma coluna vazia no fim que absorve a sobra de largura. Antes
+        # o Historico esticava ate preencher a janela e, centralizado, deixava o
+        # texto solto no meio de um vao - pior ainda com a janela maximizada.
+        colunas = ("data", "tipo", "historico", "valor", "saldo", "folga")
         self.tree = ttk.Treeview(
             moldura, columns=colunas, show="headings", selectmode="extended", style="Concilia.Treeview"
         )
 
         titulos = {
-            "data": ("Data", 96, "center", False),
-            "tipo": ("Tipo", 96, "w", False),
-            "historico": ("Histórico", 520, "center", True),
-            "valor": ("Valor", 140, "e", False),
-            "saldo": ("Saldo", 140, "e", False),
+            "data": ("Data", 96, "center"),
+            "tipo": ("Tipo", 96, "w"),
+            "historico": ("Histórico", 420, "w"),
+            "valor": ("Valor", 140, "e"),
+            "saldo": ("Saldo", 140, "e"),
         }
-        for coluna, (texto, largura, alinhamento, estica) in titulos.items():
-            self.tree.heading(coluna, text=texto, command=lambda c=coluna: self._ordenar_por(c))
-            self.tree.column(coluna, width=largura, anchor=alinhamento, stretch=estica, minwidth=70)
+        for coluna, (texto, largura, alinhamento) in titulos.items():
+            self.tree.heading(coluna, text=texto, anchor=alinhamento, command=lambda c=coluna: self._ordenar_por(c))
+            self.tree.column(coluna, width=largura, anchor=alinhamento, stretch=False, minwidth=70)
+        self.tree.heading("folga", text="")
+        self.tree.column("folga", width=0, minwidth=0, stretch=True)
+
+        self._largura_historico = 420  # medida do maior historico; refeita a cada extrato
+        self.tree.bind("<Configure>", self._encaixar_historico, add="+")
 
         # Cor so no debito, e so no tom do texto: e a excecao que se procura num
         # extrato. Credito fica neutro - antes as duas cores brigavam em todas
@@ -748,9 +756,29 @@ class ConciliaApp:
             return
         self.extrato = self.extratos[indice]
         self.linhas = [self._montar_linha(t) for t in self.extrato.transacoes]
+        self._medir_historico()
         self.ordenacao = ("data", False)
         self._atualizar_cabecalho()
         self._aplicar_filtros()
+
+    def _medir_historico(self) -> None:
+        """Largura do Historico pelo maior texto do extrato (todo ele, nao so o
+        filtrado, para a coluna nao pular de tamanho a cada busca)."""
+        import tkinter.font as tkfont
+
+        fonte = tkfont.Font(family=FONTE, size=9)
+        # fonte proporcional: os mais longos em caracteres bastam como amostra
+        maiores = sorted((l.historico for l in self.linhas), key=len, reverse=True)[:40]
+        self._largura_historico = max([fonte.measure(t) for t in maiores] + [200]) + 24
+        self._encaixar_historico()
+
+    def _encaixar_historico(self, _evento=None) -> None:
+        # nunca mais largo que o espaco livre: com a janela estreita, Valor e
+        # Saldo sairiam da tela - ai o historico corta, como fazia antes
+        fixas = sum(self.tree.column(c, "width") for c in ("data", "tipo", "valor", "saldo"))
+        livre = self.tree.winfo_width() - fixas - 4
+        if livre > 0:
+            self.tree.column("historico", width=max(200, min(self._largura_historico, livre)))
 
     def _chave_lancamento(self, transacao) -> str:
         """Identificador estavel de um lancamento, para reencontrar sua edicao.
